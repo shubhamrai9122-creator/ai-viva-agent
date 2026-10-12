@@ -1,0 +1,12 @@
+text,topic,kind,difficulty,expected
+"What is normalization in databases, and why do we normalize tables?","normalization","concept","easy","Organising tables to reduce redundancy and update/insert/delete anomalies; normal forms 1NF-3NF/BCNF; functional dependencies."
+"Explain the difference between a clustered and a non-clustered index.","indexing","concept","medium","Clustered defines physical row order, one per table; non-clustered is a separate structure pointing to rows; B+ tree."
+"What do the ACID properties of a transaction mean?","transactions","concept","easy","Atomicity, Consistency, Isolation, Durability, each with a one-line meaning; logs/WAL for durability."
+"What is the difference between an inner join and a left outer join?","sql","concept","easy","Inner returns matching rows only; left returns all left rows with NULLs where no match."
+"When would you deliberately denormalize a schema, and what do you give up?","normalization","depth","hard","Read-heavy workloads, avoiding joins, reporting; costs: redundancy, update anomalies, consistency maintenance."
+"Why can adding too many indexes slow a database down?","indexing","depth","medium","Every write updates each index; storage; optimizer choices; maintenance; trade-off read vs write."
+"Explain the isolation levels, and what anomaly each one prevents.","transactions","depth","hard","Read uncommitted, read committed, repeatable read, serializable; dirty read, non-repeatable read, phantom."
+"How does a database recover after a crash in the middle of a transaction?","transactions","depth","hard","Write-ahead log, undo/redo, checkpoints, ARIES-style recovery."
+"Why might a query that uses an index still be slow?","indexing","depth","medium","Low selectivity, functions on indexed column, wrong column order in composite index, stale statistics, random I/O."
+"An e-commerce site's order page takes eight seconds to load, and the slow query joins orders, customers and products. Walk me through how you would find and fix the problem.","indexing","applied","medium","EXPLAIN plan, identify full scans, add/compose indexes on join keys, check N+1, limit columns, cache, measure again."
+"Two users book the last seat on a flight at the same moment and both get a confirmation. What went wrong, and how would you prevent it?","transactions","applied","medium","Race condition / lost update; use transactions with proper isolation, SELECT FOR UPDATE, optimistic locking with version column, unique constraint."

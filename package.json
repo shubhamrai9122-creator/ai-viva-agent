@@ -1,0 +1,21 @@
+{
+  "name": "ai-viva-agent",
+  "version": "0.1.0",
+  "description": "AI interviewer that runs a 15-minute technical viva, scores it against a rubric, and keeps an auditable record.",
+  "type": "module",
+  "main": "server.js",
+  "engines": { "node": ">=22.13" },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "node --test tests/*.test.js",
+    "personas": "node scripts/personas.js",
+    "consistency": "node scripts/score-consistency.js",
+    "loadtest": "node scripts/loadtest.js",
+    "wer": "node scripts/wer.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.133.0",
+    "express": "^4.21.2"
+  }
+}

@@ -1,0 +1,52 @@
+{
+  users: 50,
+  wallSec: 61,
+  turns: 620,
+  p50ms: 4,
+  p95ms: 6,
+  maxMs: 15,
+  turnErrors: 0,
+  audioChunks: 467,
+  audioErrors: 0,
+  completed: 50,
+  dropped: 0,
+  peakRssMB: 89,
+  mode: 'mock'
+}
+{
+  users: 100,
+  wallSec: 63,
+  turns: 1231,
+  p50ms: 3,
+  p95ms: 6,
+  maxMs: 30,
+  turnErrors: 0,
+  audioChunks: 927,
+  audioErrors: 0,
+  completed: 100,
+  dropped: 0,
+  peakRssMB: 78,
+  mode: 'mock'
+}
+{
+  users: 150,
+  wallSec: 62,
+  turns: 1828,
+  p50ms: 2,
+  p95ms: 5,
+  maxMs: 31,
+  turnErrors: 0,
+  audioChunks: 1401,
+  audioErrors: 0,
+  completed: 150,
+  dropped: 0,
+  peakRssMB: 74,
+  mode: 'mock'
+}
+┌─────────┬───────┬─────────┬───────┬───────┬───────┬───────┬────────────┬─────────────┬─────────────┬───────────┬─────────┬───────────┬────────┐
+│ (index) │ users │ wallSec │ turns │ p50ms │ p95ms │ maxMs │ turnErrors │ audioChunks │ audioErrors │ completed │ dropped │ peakRssMB │ mode   │
+├─────────┼───────┼─────────┼───────┼───────┼───────┼───────┼────────────┼─────────────┼─────────────┼───────────┼─────────┼───────────┼────────┤
+│ 0       │ 50    │ 61      │ 620   │ 4     │ 6     │ 15    │ 0          │ 467         │ 0           │ 50        │ 0       │ 89        │ 'mock' │
+│ 1       │ 100   │ 63      │ 1231  │ 3     │ 6     │ 30    │ 0          │ 927         │ 0           │ 100       │ 0       │ 78        │ 'mock' │
+│ 2       │ 150   │ 62      │ 1828  │ 2     │ 5     │ 31    │ 0          │ 1401        │ 0           │ 150       │ 0       │ 74        │ 'mock' │
+└─────────┴───────┴─────────┴───────┴───────┴───────┴───────┴────────────┴─────────────┴─────────────┴───────────┴─────────┴───────────┴────────┘

@@ -1,0 +1,5 @@
+node_modules
+data/viva.db*
+data/audio
+test-results
+.env

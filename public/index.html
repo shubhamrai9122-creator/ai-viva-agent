@@ -1,0 +1,9 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AI Viva Agent</title><link rel="stylesheet" href="/style.css"></head>
+<body><header class="top"><b>AI Viva Agent</b></header>
+<main><div class="card"><h1>AI Viva Agent</h1>
+<p class="muted">A 15-minute voice viva with adaptive follow-ups, rubric scoring, and a full audit trail.</p>
+<div class="row"><a href="/student.html"><button>I'm a student</button></a><a href="/faculty.html"><button class="ghost">Faculty dashboard</button></a></div>
+<p class="small muted" id="mode"></p></div></main>
+<script>fetch('/api/health').then(r=>r.json()).then(h=>{document.getElementById('mode').textContent=`Server mode: ${h.mode==='mock'?'MOCK (no API key: rule-based interviewer and heuristic scorer)':'LLM ('+h.interviewerModel+' interviewer, '+h.scorerModel+' scorer)'}`})</script>
+</body></html>

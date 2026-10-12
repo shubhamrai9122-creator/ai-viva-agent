@@ -1,0 +1,41 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Student Viva</title><link rel="stylesheet" href="/style.css"></head>
+<body><header class="top"><b>AI Viva</b><span class="muted small" id="who"></span></header>
+<main style="max-width:760px">
+<section id="s-join" class="card"><h1>Join your viva</h1>
+  <label>Viva code</label><input id="code" placeholder="e.g. DBMS-1234" autocomplete="off">
+  <div class="row"><div><label>Student ID</label><input id="sid" autocomplete="off"></div><div><label>Name</label><input id="sname"></div></div>
+  <label>Speech language</label><select id="lang"><option value="en-IN">English (India)</option><option value="hi-IN">Hindi / Hinglish</option><option value="en-US">English (US)</option></select>
+  <p class="err" id="join-err"></p><button id="to-rules">Continue</button></section>
+
+<section id="s-rules" class="card hidden"><h1>Rules and consent</h1>
+  <ul>
+    <li>The viva lasts <b>15 minutes</b> in five parts: warm-up, fundamentals, depth, an applied problem, and wrap-up. The timer is always visible.</li>
+    <li>The AI examiner speaks each question aloud and listens to your answer. Answer in your own words. Hindi/English mixing is fine.</li>
+    <li>Each answer is capped at about 90 seconds. Saying "I don't know" is fine; the examiner moves on.</li>
+    <li>Stay on this tab. Tab switches, long silences and pasted text are logged for faculty review.</li>
+    <li>The examiner will not reveal answers or marks. Marks are given after the viva and reviewed by faculty.</li>
+    <li>If you get disconnected, rejoin with the same code and ID. The clock keeps running.</li>
+  </ul>
+  <label style="display:flex;gap:8px;align-items:flex-start;color:var(--ink)"><input type="checkbox" id="consent" style="width:auto;margin-top:4px">
+  <span>I consent to this viva being audio-recorded and transcribed. The recording, transcript and scores are stored for assessment and audit and are visible only to authorised faculty.</span></label>
+  <h3>Microphone check</h3><div class="meter"><i id="mic-level"></i></div><p class="small muted" id="mic-msg">Click "Test microphone" and say something.</p>
+  <div class="row"><button class="ghost" id="mic-test">Test microphone</button><button id="start" disabled>Start viva</button></div>
+  <p class="err" id="rules-err"></p></section>
+
+<section id="s-viva" class="card hidden">
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+    <div><div class="small muted">Time remaining</div><div class="timer" id="timer">15:00</div></div>
+    <div class="status"><span class="dot" id="dot"></span><span id="status">Starting...</span></div>
+  </div>
+  <div class="phases" id="phases"></div>
+  <h3>Examiner</h3><div class="say" id="say"></div>
+  <h3>You <span class="small muted" id="answer-clock"></span></h3><div class="heard" id="heard"></div>
+  <div class="meter" style="margin-top:8px"><i id="level"></i></div>
+  <div class="row" style="margin-top:12px"><button id="done-btn" disabled>I'm done answering</button><button class="ghost" id="type-btn">Type instead</button></div>
+  <div id="type-box" class="hidden"><label>Typed answer (use only if your microphone fails)</label><textarea id="typed"></textarea><button id="send-typed" style="margin-top:8px">Send answer</button></div>
+  <p class="err" id="viva-err"></p></section>
+
+<section id="s-done" class="card hidden"><h1>Viva complete</h1><p>Thank you. Your recording and transcript are saved. Your marks will be shared after faculty review.</p></section>
+</main>
+<script src="/student.js"></script></body></html>

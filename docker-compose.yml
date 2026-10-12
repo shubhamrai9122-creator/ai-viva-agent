@@ -1,0 +1,17 @@
+services:
+  viva:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      # Leave ANTHROPIC_API_KEY empty to run in mock mode (no API cost).
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      FACULTY_PASSCODE: ${FACULTY_PASSCODE:-faculty123}
+      INTERVIEWER_MODEL: ${INTERVIEWER_MODEL:-claude-haiku-5-5}
+      SCORER_MODEL: ${SCORER_MODEL:-claude-opus-5-5}
+      SCORING_CONCURRENCY: ${SCORING_CONCURRENCY:-4}
+    volumes:
+      - viva-data:/data
+    restart: unless-stopped
+volumes:
+  viva-data:

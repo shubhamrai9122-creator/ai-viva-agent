@@ -1,0 +1,29 @@
+[
+  {
+    "transcript": "dontknow",
+    "runs": 5,
+    "totals": "30 / 30 / 30 / 30 / 30",
+    "mean": 30,
+    "stdev": 0,
+    "range": 0,
+    "maxDimStdev": 0
+  },
+  {
+    "transcript": "strong",
+    "runs": 5,
+    "totals": "92 / 92 / 92 / 92 / 92",
+    "mean": 92,
+    "stdev": 0,
+    "range": 0,
+    "maxDimStdev": 0
+  },
+  {
+    "transcript": "weak",
+    "runs": 5,
+    "totals": "57 / 57 / 57 / 57 / 57",
+    "mean": 57,
+    "stdev": 0,
+    "range": 0,
+    "maxDimStdev": 0
+  }
+]

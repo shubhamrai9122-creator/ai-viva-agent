@@ -1,0 +1,6 @@
+node_modules/
+data/viva.db*
+data/audio/
+test-results/db/
+test-results/loaddb/
+.env

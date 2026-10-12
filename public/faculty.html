@@ -1,0 +1,43 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Faculty Dashboard</title><link rel="stylesheet" href="/style.css"></head>
+<body><header class="top"><b>AI Viva &middot; Faculty</b><nav><span class="small muted" id="mode"></span><a href="#" id="logout">Lock</a></nav></header>
+<main>
+<section id="gate" class="card hidden" style="max-width:420px"><h2>Faculty passcode</h2><input id="pass" type="password"><p class="err" id="gate-err"></p><button id="unlock">Unlock</button></section>
+<div id="app" class="hidden">
+  <div class="tabs"><button data-t="results" class="on">Results</button><button data-t="vivas">Vivas & question banks</button><button data-t="calib">Calibration</button></div>
+
+  <section data-p="results">
+    <div class="card"><div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+      <h2 style="margin:0">Viva results</h2>
+      <label style="display:flex;gap:6px;align-items:center;margin:0;color:var(--ink)"><input type="checkbox" id="only-review" style="width:auto"> Needs review only</label>
+      <input id="search" placeholder="Search student ID / name" style="max-width:240px">
+      <a id="export" style="margin-left:auto"><button class="ghost">Export CSV</button></a></div>
+      <div id="results" style="margin-top:12px;overflow-x:auto"></div></div>
+  </section>
+
+  <section data-p="vivas" class="hidden">
+    <div class="card"><h2>Create a viva</h2>
+      <div class="row"><div><label>Subject</label><input id="v-subject" placeholder="Database Management Systems"></div>
+        <div><label>Code (optional)</label><input id="v-code" placeholder="auto"></div>
+        <div><label>Difficulty</label><select id="v-diff"><option>easy</option><option selected>medium</option><option>hard</option></select></div></div>
+      <label>Topics (comma-separated)</label><input id="v-topics" placeholder="normalization, indexing, transactions, SQL joins">
+      <label>Phase timings in seconds (must total at most 900)</label><div class="row" id="v-phases"></div>
+      <label>Question bank: upload CSV/JSON (columns: text, topic, kind [concept|depth|applied], difficulty, expected)</label>
+      <input type="file" id="v-file" accept=".csv,.json,text/csv,application/json">
+      <p class="small muted">Or leave empty and generate questions from a syllabus after creating the viva (you approve each one).</p>
+      <p class="err" id="v-err"></p><button id="v-create">Create viva</button></div>
+    <div class="card"><h2>Vivas</h2><div id="vivas"></div></div>
+    <div class="card hidden" id="qpanel"><h2 id="q-title"></h2>
+      <div class="row"><div><label>Generate from syllabus (AI drafts, you approve)</label><textarea id="q-syllabus" placeholder="Paste syllabus units..."></textarea>
+        <button id="q-gen" style="margin-top:8px">Generate draft questions</button></div>
+        <div><label>Upload more questions (CSV/JSON)</label><input type="file" id="q-file" accept=".csv,.json"><p class="small muted">Uploaded questions are approved immediately.</p></div></div>
+      <p class="err" id="q-err"></p>
+      <div style="margin:10px 0"><button class="ghost" id="q-approve">Approve selected</button></div>
+      <div id="qlist" style="overflow-x:auto"></div></div>
+  </section>
+
+  <section data-p="calib" class="hidden"><div class="card"><h2>Calibration: AI marks vs faculty marks</h2>
+    <p class="small muted">Every faculty override is a calibration point. Re-mark a sample of vivas blind, enter your mark as an override, and compare here.</p>
+    <div id="calib"></div></div></section>
+</div></main>
+<script src="/faculty.js"></script></body></html>

@@ -1,0 +1,24 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Viva Review</title><link rel="stylesheet" href="/style.css"></head>
+<body><header class="top"><b>AI Viva &middot; Review</b><nav><a href="/faculty.html">&larr; All results</a></nav></header>
+<main>
+<div class="card"><div style="display:flex;gap:20px;flex-wrap:wrap;align-items:center">
+  <div><h1 id="title" style="margin:0"></h1><div class="small muted" id="sub"></div></div>
+  <div style="margin-left:auto;text-align:right"><div class="small muted">Final mark</div><div class="big" id="final">-</div><div class="small muted" id="ai"></div></div></div>
+  <div id="reasons" style="margin-top:10px"></div></div>
+<div class="grid2">
+  <div>
+    <div class="card"><h2>Recording</h2><div id="audio"></div><p class="small muted">Click any transcript line to jump to that moment.</p></div>
+    <div class="card"><h2>Transcript</h2><div id="transcript"></div></div>
+  </div>
+  <div>
+    <div class="card"><h2>Rubric scores</h2><div id="scores"></div><h3>Feedback</h3><div id="feedback"></div>
+      <h3>Scoring record</h3><div class="small muted" id="meta"></div><button class="ghost" id="rescore" style="margin-top:8px">Re-run scoring</button></div>
+    <div class="card"><h2>Override mark</h2><p class="small muted">Faculty override always wins and is logged with your name and reason.</p>
+      <div class="row"><div><label>Your name</label><input id="o-name"></div><div><label>Mark (0-100)</label><input id="o-total" type="number" min="0" max="100" step="0.5"></div></div>
+      <label>Reason</label><textarea id="o-reason"></textarea><p class="err" id="o-err"></p><button id="o-save">Save override</button></div>
+    <div class="card"><h2>Integrity and events</h2><div id="events"></div></div>
+    <div class="card"><h2>Audit log</h2><div id="audit" class="small"></div></div>
+  </div>
+</div></main>
+<script src="/review.js"></script></body></html>
