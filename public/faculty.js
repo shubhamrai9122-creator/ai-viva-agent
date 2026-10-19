@@ -2,6 +2,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 let key = sessionStorage.getItem('fkey') || '';
 let currentViva = null;
+const msg = (sel, text, ok = false) => { const el = $(sel); el.textContent = text; el.classList.toggle('ok', ok); };
 
 async function api(path, opts = {}) {
   const r = await fetch(path, { ...opts, headers: { 'content-type': 'application/json', 'x-faculty-key': key, ...(opts.headers || {}) } });
@@ -52,13 +53,13 @@ async function loadVivas() {
   const vs = await api('/api/faculty/vivas');
   $('#vivas').innerHTML = vs.length ? `<table><tr><th>Code</th><th>Subject</th><th>Topics</th><th>Questions</th><th>Sessions</th><th></th></tr>${vs.map(v => `
     <tr><td><b>${esc(v.code)}</b></td><td>${esc(v.subject)}<div class="small muted">${esc(v.difficulty)}</div></td><td class="small">${esc(v.topics.join(', '))}</td>
-    <td>${v.approved_questions} approved${v.pending_questions ? `<div class="chip warn">${v.pending_questions} pending</div>` : ''}</td><td>${v.sessions}</td>
+    <td>${v.approved_questions} approved${v.pending_questions ? `<div class="chip warn">${v.pending_questions} pending</div>` : ''}${v.approved_questions < 20 ? '<div class="chip warn" title="With fewer than 20 approved questions, a student who skips many questions can run out before the time is up. The examiner then uses logged follow-on questions and second chances.">small bank: aim for 20+</div>' : ''}</td><td>${v.sessions}</td>
     <td><button class="ghost" data-q="${v.id}" data-name="${esc(v.code)}">Questions</button></td></tr>`).join('')}</table>` : '<p class="muted">No vivas yet.</p>';
   for (const b of document.querySelectorAll('[data-q]')) b.onclick = () => openQuestions(b.dataset.q, b.dataset.name);
 }
 const readFile = f => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsText(f); });
 $('#v-create').onclick = async () => {
-  $('#v-err').textContent = '';
+  msg('#v-err', '');
   try {
     const f = $('#v-file').files[0];
     const body = {
@@ -68,9 +69,9 @@ $('#v-create').onclick = async () => {
       bankText: f ? await readFile(f) : undefined, bankFormat: f ? (f.name.endsWith('.json') ? 'json' : 'csv') : undefined,
     };
     const r = await api('/api/faculty/vivas', { method: 'POST', body: JSON.stringify(body) });
-    $('#v-err').textContent = `Created ${r.code} with ${r.added} questions.`;
+    msg('#v-err', `Created ${r.code} with ${r.added} questions.`, true);
     await loadVivas(); openQuestions(r.id, r.code);
-  } catch (e) { $('#v-err').textContent = e.message; }
+  } catch (e) { msg('#v-err', e.message); }
 };
 async function openQuestions(id, code) {
   currentViva = id; $('#qpanel').classList.remove('hidden'); $('#q-title').textContent = `Question bank: ${code}`;
@@ -81,14 +82,14 @@ async function openQuestions(id, code) {
   $('#qpanel').scrollIntoView({ behavior: 'smooth' });
 }
 $('#q-gen').onclick = async () => {
-  $('#q-err').textContent = 'Generating...';
-  try { const r = await api(`/api/faculty/vivas/${currentViva}/generate`, { method: 'POST', body: JSON.stringify({ syllabus: $('#q-syllabus').value }) }); $('#q-err').textContent = `${r.added} draft questions added. Review and approve them below.`; openQuestions(currentViva, $('#q-title').textContent.split(': ')[1]); loadVivas(); }
-  catch (e) { $('#q-err').textContent = e.message; }
+  msg('#q-err', 'Generating...', true);
+  try { const r = await api(`/api/faculty/vivas/${currentViva}/generate`, { method: 'POST', body: JSON.stringify({ syllabus: $('#q-syllabus').value }) }); msg('#q-err', `${r.added} draft questions added. Review and approve them below.`, true); openQuestions(currentViva, $('#q-title').textContent.split(': ')[1]); loadVivas(); }
+  catch (e) { msg('#q-err', e.message); }
 };
 $('#q-file').onchange = async () => {
   const f = $('#q-file').files[0]; if (!f) return;
-  try { const r = await api(`/api/faculty/vivas/${currentViva}/questions`, { method: 'POST', body: JSON.stringify({ bankText: await readFile(f), bankFormat: f.name.endsWith('.json') ? 'json' : 'csv' }) }); $('#q-err').textContent = `${r.added} questions added.`; openQuestions(currentViva, $('#q-title').textContent.split(': ')[1]); loadVivas(); }
-  catch (e) { $('#q-err').textContent = e.message; }
+  try { const r = await api(`/api/faculty/vivas/${currentViva}/questions`, { method: 'POST', body: JSON.stringify({ bankText: await readFile(f), bankFormat: f.name.endsWith('.json') ? 'json' : 'csv' }) }); msg('#q-err', `${r.added} questions added.`, true); openQuestions(currentViva, $('#q-title').textContent.split(': ')[1]); loadVivas(); }
+  catch (e) { msg('#q-err', e.message); }
 };
 $('#q-approve').onclick = async () => {
   const ids = [...document.querySelectorAll('#qlist input[data-id]:checked')].map(i => i.dataset.id);

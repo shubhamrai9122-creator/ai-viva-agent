@@ -39,7 +39,7 @@ async function load() {
     <div class="tline ${l.role === 'EXAMINER' ? 'ai' : ''}" data-line="${l.line}" data-t="${l.t}">
       <span class="small muted">${l.line}</span><span class="small muted">${l.ts}</span>
       <div><span class="who">${l.role}</span>
-        ${l.role === 'EXAMINER' && l.action ? `<span class="chip">${esc(l.action)}</span>` : ''}${l.role === 'EXAMINER' && l.questionId && l.questionId.startsWith('q_') && l.action === 'next' ? `<span class="chip" title="${esc(l.question)}">bank ${esc(l.questionId)}</span>` : ''}
+        ${l.role === 'EXAMINER' && l.action ? `<span class="chip">${esc(l.action)}</span>` : ''}${l.role === 'EXAMINER' && l.questionId && l.questionId.startsWith('q_') && l.action === 'next' ? `<span class="chip" title="${esc(l.question)}">bank ${esc(l.questionId)}</span>` : ''}${l.role === 'EXAMINER' && l.variantOf && l.action === 'next' ? `<span class="chip warn" title="Asked after the approved bank ran out">${l.questionId.startsWith('rev:') ? 'second chance at' : 'variant of'} ${esc(l.variantOf)}</span>` : ''}
         ${l.role === 'STUDENT' && l.assessment ? `<span class="chip">${esc(l.assessment)}</span>` : ''}${l.latencyMs != null ? `<span class="chip">${l.latencyMs} ms${l.meta?.mode ? ' - ' + esc(l.meta.mode) : ''}</span>` : ''}
         <div>${esc(l.text)}</div></div></div>`).join('');
   for (const el of document.querySelectorAll('.tline')) el.onclick = () => highlight(el.dataset.line);
@@ -61,8 +61,8 @@ async function load() {
 $('#o-save').onclick = async () => {
   try {
     await api(`/api/faculty/sessions/${id}/override`, { method: 'POST', body: JSON.stringify({ reviewer: $('#o-name').value.trim(), total: $('#o-total').value, reason: $('#o-reason').value.trim() }) });
-    $('#o-err').textContent = 'Saved.'; load();
-  } catch (e) { $('#o-err').textContent = e.message; }
+    $('#o-err').textContent = 'Saved.'; $('#o-err').classList.add('ok'); load();
+  } catch (e) { $('#o-err').textContent = e.message; $('#o-err').classList.remove('ok'); }
 };
 $('#rescore').onclick = async () => { await api(`/api/faculty/sessions/${id}/rescore`, { method: 'POST' }); setTimeout(load, 1500); };
 load().catch(e => { document.querySelector('main').innerHTML = `<p class="err">${esc(e.message)}</p>`; });

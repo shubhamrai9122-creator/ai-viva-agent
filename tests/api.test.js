@@ -26,6 +26,11 @@ test('full viva lifecycle', async () => {
   const qs = (await call(`/api/faculty/vivas/${v.body.id}/questions`, null, F)).body;
   assert.ok(qs.some(q => q.approved === 0 && q.source === 'ai-generated'), 'generated questions start unapproved');
 
+  assert.equal((await call('/api/student/vivas/NOPE-0')).status, 404, 'unknown code rejected up front');
+  const pub = (await call('/api/student/vivas/test-1')).body;
+  assert.equal(pub.subject, 'DBMS'); assert.equal(pub.slotSeconds, 900); assert.equal(pub.interviewSeconds, 870);
+  assert.equal((await call('/api/faculty/vivas', { subject: 'Dup', code: 'test-1' }, F)).status, 409, 'duplicate code rejected');
+  assert.equal((await call('/api/faculty/vivas', { subject: 'Long', phases: [{ seconds: 900 }] }, F)).status, 400, 'phases over 14:30 rejected');
   assert.equal((await call('/api/student/join', { code: 'TEST-1', studentId: 'S1' })).status, 400, 'consent required');
   const j = await call('/api/student/join', { code: 'TEST-1', studentId: 'S1', name: 'Asha', consent: true });
   assert.equal(j.status, 200);
@@ -45,6 +50,21 @@ test('full viva lifecycle', async () => {
   assert.equal(rejoin.body.sessionId, sid); assert.equal(rejoin.body.resumed, true);
 
   await call(`/api/student/sessions/${sid}/end`, {});
+
+  // A student who skips everything on a small bank, answering instantly: the bank runs out at
+  // 0 s elapsed, which must still be flagged (0 is a valid time).
+  const v2 = await call('/api/faculty/vivas', { subject: 'Tiny', code: 'TINY-1', topics: ['indexing'],
+    questions: [{ text: 'What is an index?', topic: 'indexing', kind: 'concept' }] }, F);
+  const j2 = (await call('/api/student/join', { code: 'TINY-1', studentId: 'S2', consent: true })).body;
+  await call(`/api/student/sessions/${j2.sessionId}/start`, {});
+  for (let i = 0, done = false; i < 40 && !done; i++) done = (await call(`/api/student/sessions/${j2.sessionId}/turn`, { text: "I don't know", turnKey: 't' + i })).body.done;
+  await call(`/api/student/sessions/${j2.sessionId}/end`, {});
+  let d2;
+  for (let i = 0; i < 40; i++) { d2 = (await call(`/api/faculty/sessions/${j2.sessionId}`, null, F)).body; if (d2.session.score_status === 'done') break; await new Promise(r => setTimeout(r, 50)); }
+  assert.ok(d2.events.some(e => e.type === 'bank_exhausted'), 'bank_exhausted event logged');
+  assert.ok(d2.session.review_reasons.some(r => /Question bank ran out/.test(r)), 'forces review');
+  assert.ok(d2.transcript.some(l => l.questionId?.startsWith('rev:') && l.variantOf), 'second chances are traceable');
+  assert.ok(d2.transcript.some(l => l.questionId?.startsWith('var:') && l.variantOf), 'follow-ons are traceable');
   assert.equal((await call('/api/student/join', { code: 'TEST-1', studentId: 'S1', consent: true })).status, 409, 'no retake');
 
   let detail;

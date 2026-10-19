@@ -151,6 +151,8 @@ export async function scoreSession(session, viva) {
   if (count('silence') >= 3) reasons.push(`${count('silence')} long silences`);
   if (count('tab_hidden') >= 2) reasons.push(`Tab switched ${count('tab_hidden')} times`);
   if (count('paste') >= 1) reasons.push('Pasted text detected');
+  const exhausted = events.find(e => e.type === 'bank_exhausted');
+  if (exhausted) reasons.push(`Question bank ran out at ${fmt(exhausted.t)}: the student had less than the full time`);
   if (raw.manipulation_attempt) reasons.push('Prompt-injection / manipulation attempt detected');
   if (flags.some(f => f.startsWith('invalid_evidence'))) reasons.push('Scorer cited non-existent transcript lines');
 

@@ -88,7 +88,7 @@ Faculty can change the phase durations when they create a viva. The server rejec
 **Server:** see the load test in TEST_REPORT.md. A single Node process handled 150 concurrent synthetic students in mock mode. In LLM mode the bottleneck moves to API latency and rate limits, not the server.
 
 ## Known limitations / next steps
-- Bank size matters. With the 11-question sample bank, a student who answers "I don't know" to everything runs out of questions and reaches the wrap-up early. Use at least 20 approved questions per viva (about 6 concept, 8 depth and 4 applied).
+- Bank size matters. When the bank runs out, the examiner asks logged follow-on questions and second chances so the student keeps the full time; if those run out too, the viva is flagged for review. Aim for 20+ approved questions per viva (the faculty dashboard warns below that).
 - Faculty authentication is a shared passcode. Production should use the institute's SSO with per-reviewer accounts.
 - The code/whiteboard round and multiple-voice detection aren't built yet.
 - Latency in LLM mode hasn't been measured yet because no API key was available during the build (see TEST_REPORT.md).

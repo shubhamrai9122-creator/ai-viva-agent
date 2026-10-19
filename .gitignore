@@ -4,3 +4,4 @@ data/audio/
 test-results/db/
 test-results/loaddb/
 .env
+.claude/

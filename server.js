@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { db, uid, nowIso, getViva, listVivas, getQuestions, insertQuestions, getSession, saveState, getTurns, addTurn,
   addEvent, getEvents, addAudit, getAudit, AUDIO_DIR } from './src/db.js';
 import { DEFAULT_PHASES, DEFAULT_RUBRIC, SLOT_SECONDS, MAX_ANSWER_SECONDS, env, MOCK } from './src/config.js';
-import { greeting, initialState, nextTurn, totalSeconds, timePhaseIndex, INTERVIEWER_PROMPT_VERSION } from './src/interviewer.js';
+import { greeting, initialState, nextTurn, totalSeconds, slotSeconds, timePhaseIndex, INTERVIEWER_PROMPT_VERSION } from './src/interviewer.js';
 import { enqueueScoring, resumeQueue, queueStats } from './src/queue.js';
 import { parseBank, generateBank } from './src/questionbank.js';
 import { transcriptLines } from './src/scorer.js';
@@ -44,9 +44,12 @@ app.post('/api/faculty/vivas', faculty, wrap(async (req, res) => {
   const { subject, topics = [], difficulty = 'medium', phases, bankText, bankFormat, questions } = req.body;
   if (!subject) return bad(res, 400, 'subject required');
   const ph = Array.isArray(phases) && phases.length ? phases.map((p, i) => ({ ...DEFAULT_PHASES[i], ...p, seconds: Number(p.seconds) })) : DEFAULT_PHASES;
-  if (totalSeconds(ph) > SLOT_SECONDS) return bad(res, 400, `phases exceed the ${SLOT_SECONDS / 60}-minute slot`);
+  if (ph.some(p => !Number.isFinite(p.seconds) || p.seconds < 0)) return bad(res, 400, 'phase timings must be positive numbers of seconds');
+  // Phases plus the 30 s scoring hand-off must fit in the 15-minute slot.
+  if (totalSeconds(ph) > SLOT_SECONDS - 30) return bad(res, 400, `phases must total at most ${SLOT_SECONDS - 30} seconds (14:30)`);
   const id = uid('v_');
-  const code = (req.body.code || subject.replace(/[^A-Za-z]/g, '').slice(0, 4).toUpperCase() + '-' + Math.floor(1000 + Math.random() * 9000));
+  const code = String(req.body.code || subject.replace(/[^A-Za-z]/g, '').slice(0, 4) + '-' + Math.floor(1000 + Math.random() * 9000)).trim().toUpperCase();
+  if (getViva(code)) return bad(res, 409, `viva code ${code} is already in use`);
   db.prepare('INSERT INTO vivas (id, code, subject, topics, difficulty, phases, rubric, created_at) VALUES (?,?,?,?,?,?,?,?)')
     .run(id, code, subject, JSON.stringify(topics), difficulty, JSON.stringify(ph), JSON.stringify(DEFAULT_RUBRIC), nowIso());
   let added = 0;
@@ -81,6 +84,14 @@ app.delete('/api/faculty/questions/:id', faculty, (req, res) => {
 });
 
 // ---------- student: join, consent, interview ----------
+// Lets the join page check the code up front and show the real duration in the rules.
+app.get('/api/student/vivas/:code', (req, res) => {
+  const v = getViva(String(req.params.code || '').trim().toUpperCase());
+  if (!v) return bad(res, 404, 'Viva code not found');
+  if (!getQuestions(v.id).length) return bad(res, 409, 'This viva has no approved questions yet');
+  res.json(publicViva(v));
+});
+
 app.post('/api/student/join', wrap(async (req, res) => {
   const { code, studentId, name, consent, language = 'en-IN' } = req.body;
   const v = getViva(String(code || '').trim().toUpperCase()) || getViva(String(code || '').trim());
@@ -103,7 +114,8 @@ app.post('/api/student/join', wrap(async (req, res) => {
   res.json({ sessionId: id, resumed: false, viva: publicViva(v) });
 }));
 
-const publicViva = v => ({ subject: v.subject, topics: v.topics, phases: v.phases.map(({ key, label, seconds }) => ({ key, label, seconds })), slotSeconds: SLOT_SECONDS, maxAnswerSeconds: MAX_ANSWER_SECONDS });
+const publicViva = v => ({ subject: v.subject, topics: v.topics, phases: v.phases.map(({ key, label, seconds }) => ({ key, label, seconds })),
+  interviewSeconds: totalSeconds(v.phases), slotSeconds: slotSeconds(v.phases), maxAnswerSeconds: MAX_ANSWER_SECONDS });
 
 function snapshot(s, v) {
   const el = s.started_at ? elapsedOf(s) : 0;
@@ -153,6 +165,7 @@ app.post('/api/student/sessions/:id/turn', wrap(async (req, res) => {
     phase: askedPhase, question_id: s.state.q?.id, assessment: r.assessment, meta: { sttConfidence, silence, capped } });
   addTurn({ session_id: s.id, role: 'ai', text: r.say, t_start: elAfter, phase: r.phaseKey, question_id: r.questionId, action: r.action,
     latency_ms: latency, meta: { mode: r.mode, prompt_version: INTERVIEWER_PROMPT_VERSION, model: r.mode === 'llm' ? env.interviewerModel : r.mode } });
+  if (r.state.bankExhaustedAt != null && s.state.bankExhaustedAt == null) addEvent(s.id, r.state.bankExhaustedAt, 'bank_exhausted', {});
   const response = { say: r.say, action: r.action, done: r.done, ...snapshot({ ...s, state: r.state }, v), serverLatencyMs: latency };
   saveState(s.id, { ...r.state, lastTurnKey: turnKey, lastResponse: response });
   res.json(response);
@@ -188,10 +201,11 @@ app.post('/api/student/sessions/:id/end', (req, res) => {
 
 // Server-side hard limit: close any viva past its slot even if the browser vanished.
 setInterval(() => {
-  for (const r of db.prepare("SELECT id, started_at FROM sessions WHERE status = 'active'").all()) {
-    if ((Date.now() - r.started_at) / 1000 > SLOT_SECONDS + 60) {
+  for (const r of db.prepare("SELECT s.id, s.started_at, v.phases FROM sessions s JOIN vivas v ON v.id = s.viva_id WHERE s.status = 'active'").all()) {
+    const slot = slotSeconds(JSON.parse(r.phases));
+    if ((Date.now() - r.started_at) / 1000 > slot + 60) {
       db.prepare("UPDATE sessions SET status = 'ended', ended_at = ? WHERE id = ?").run(Date.now(), r.id);
-      addEvent(r.id, SLOT_SECONDS, 'ended', { reason: 'server_timeout' });
+      addEvent(r.id, slot, 'ended', { reason: 'server_timeout' });
       enqueueScoring(r.id);
     }
   }
@@ -213,6 +227,7 @@ app.get('/api/faculty/sessions/:id', faculty, (req, res) => {
   res.json({
     session: { ...s, state: undefined }, viva: { subject: v.subject, code: v.code, phases: v.phases, rubric: v.rubric },
     transcript: transcriptLines(turns).map((l, i) => ({ ...l, question: bank[turns[i].question_id]?.text || null, questionId: turns[i].question_id,
+      variantOf: /^(var|rev):/.test(turns[i].question_id || '') ? turns[i].question_id.split(':')[1] : null,
       action: turns[i].action, latencyMs: turns[i].latency_ms, meta: turns[i].meta })),
     events, audio: events.filter(e => e.type === 'audio_segment').map(e => ({ url: `/api/faculty/audio/${e.detail.file}`, startT: e.detail.startT })),
     audit: getAudit(s.id),

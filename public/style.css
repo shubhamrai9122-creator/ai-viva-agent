@@ -18,7 +18,7 @@ button.ghost{background:transparent;color:var(--accent)} button:disabled{opacity
 .chip.link{cursor:pointer;color:var(--accent)} .chip.ok{color:var(--ok)} .chip.warn{color:var(--warn)} .chip.bad{color:var(--bad)}
 table{width:100%;border-collapse:collapse;font-size:14px} th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line);vertical-align:top}
 th{font-size:12px;color:var(--muted);font-weight:600}
-.err{color:var(--bad);font-size:14px;min-height:20px}
+.err{color:var(--bad);font-size:14px;min-height:20px}.err.ok{color:var(--ok)}
 .tabs{display:flex;gap:6px;margin-bottom:14px}.tabs button{background:transparent;color:var(--ink);border-color:var(--line)}.tabs button.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
 .hidden{display:none!important}
 /* student interview */

@@ -1,32 +1,32 @@
 [
   {
     "persona": "strong",
-    "total": 92,
-    "deeper": 15,
+    "total": 81,
+    "deeper": 13,
     "hint": 0,
-    "redirect": 0,
+    "redirect": 2,
     "next": 9,
     "needsReview": true,
-    "seconds": 757
+    "seconds": 764
   },
   {
     "persona": "weak",
     "total": 57,
     "deeper": 0,
-    "hint": 12,
+    "hint": 21,
     "redirect": 0,
-    "next": 12,
+    "next": 23,
     "needsReview": true,
-    "seconds": 397
+    "seconds": 738
   },
   {
     "persona": "dontknow",
     "total": 30,
     "deeper": 0,
-    "hint": 2,
-    "redirect": 1,
-    "next": 12,
+    "hint": 1,
+    "redirect": 2,
+    "next": 46,
     "needsReview": true,
-    "seconds": 239
+    "seconds": 734
   }
 ]

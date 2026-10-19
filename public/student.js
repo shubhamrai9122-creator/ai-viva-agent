@@ -30,8 +30,18 @@ async function api(path, body, tries = 4) {
 const event = (type, detail) => sessionId && fetch(`/api/student/sessions/${sessionId}/event`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ type, detail }) }).catch(() => {});
 
 // ---- step 1: join details ----
-$('#to-rules').onclick = () => {
+$('#to-rules').onclick = async () => {
   if (!$('#code').value.trim() || !$('#sid').value.trim()) { $('#join-err').textContent = 'Enter the viva code and your student ID.'; return; }
+  // Check the code now, so a typo is caught before the consent step, and show the real length.
+  try {
+    const r = await fetch(`/api/student/vivas/${encodeURIComponent($('#code').value.trim())}`);
+    const v = await r.json();
+    if (!r.ok) { $('#join-err').textContent = v.error || 'Viva not found'; return; }
+    const mins = Math.ceil(v.interviewSeconds / 60);
+    $('#viva-info').textContent = `${v.subject}: ${v.topics.join(', ')}`;
+    $('#rule-length').innerHTML = `The viva lasts <b>${mins} minutes</b> in ${v.phases.length} parts: ${v.phases.map(p => p.label.toLowerCase()).join(', ')}. The timer is always visible.`;
+  } catch { $('#join-err').textContent = 'Cannot reach the server. Check your connection.'; return; }
+  $('#join-err').textContent = '';
   $('#who').textContent = `${$('#sname').value} (${$('#sid').value})`;
   show('s-rules');
 };
