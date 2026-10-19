@@ -20,7 +20,7 @@ docker compose up --build
 With no `ANTHROPIC_API_KEY` set, the app runs in **mock mode**: a rule-based interviewer and a heuristic scorer, with no API cost. Every mock-mode score is flagged for faculty review. To use Claude, set the key first:
 
 ```bash
-export ANTHROPIC_API_KEY=sk-ant-...   # or put it in .env (see .env.example)
+export ANTHROPIC_API_KEY=sk-ant-...   # or put it in .env (see .env.example); npm start reads .env
 npm start
 ```
 
@@ -28,15 +28,25 @@ A demo viva with code **`DBMS-DEMO`** (11 DBMS questions) is seeded on first sta
 
 | Who | URL | Notes |
 |---|---|---|
-| Student | `/student.html` | Use Chrome or Edge, which support in-browser speech recognition. Other browsers can type answers. |
+| Student | `/student.html` | Signs in with an email code. Use Chrome or Edge to speak answers; any browser can type them. |
 | Faculty | `/faculty.html` | Passcode: `FACULTY_PASSCODE` (default `faculty123`) |
 
 ## What's implemented
 
 **Required features**
-1. **Viva setup.** Faculty enter the subject, topics, difficulty and per-phase timings, and upload a question bank as CSV or JSON. They can also paste a syllabus to have the AI draft questions, which stay *pending* until faculty approve them.
-2. **Student login and consent.** Students join with the viva code and their ID, read the rules, test their mic, and tick a recording-consent box. The server refuses to start a viva without consent.
-3. **Voice interview.** The browser speaks each question (TTS) and transcribes the answer (STT) with the Web Speech API. The server picks the next turn using Claude Haiku 5.5 with a 6 s timeout, falling back to a rule-based turn if the call fails.
+1. **Viva setup.** Faculty enter the subject, topics, difficulty and per-phase timings, and add questions in any of these ways:
+   - upload a ready-made question bank as CSV or JSON;
+   - upload a question paper or syllabus as a **PDF, PNG or JPG**. With an API key, Claude reads the file directly; without one, the app reads the PDF's text, or reads an image with OCR (Tesseract), and picks out the questions. If the file has no questions, it drafts some from the syllabus;
+   - paste a syllabus and let the AI draft questions.
+
+   Questions from a file or the AI start as *drafts* until faculty approve them.
+2. **Student sign-in and consent.** Students sign in with their email and a 6-digit one-time code (no passwords). Codes are sent by SMTP, or printed in the server log until email is set up (see `.env.example`). `ALLOWED_EMAIL_DOMAINS` can restrict sign-in to the institute's domain. Each viva is tied to the verified email: one attempt per email, and a student ID can't be reused by another email. Students then enter the viva code and their ID, read the rules, choose the examiner's voice, test their mic, and tick a recording-consent box. The server refuses to start a viva without consent.
+3. **Voice interview.** The browser speaks each question (TTS) and transcribes the answer (STT) with the Web Speech API.
+   - **Examiner voice:** a female voice by default (Samantha, Veena, Heera or similar, depending on the device), and students can pick another.
+   - **Read-only mode:** students can turn the voice off to read questions instead, or stop it mid-sentence.
+   - **Answering:** one answer box takes both speech and typing.
+
+   The server picks the next turn using Claude Haiku 5.5 with a 6 s timeout, falling back to a rule-based turn if the call fails.
 4. **Adaptive follow-ups.** A deterministic controller enforces this policy: a strong answer gets a follow-up that goes deeper; a partial answer gets one hint and then the viva moves on; "I don't know" moves on immediately; off-topic answers and prompt injection get one redirect. Follow-ups per question are capped (1 in Fundamentals, 3 in Depth and Applied). The examiner never reveals answers.
 5. **15-minute hard limit.** The timer and phase bar are always visible. Answers are capped at 90 s, and a wrap-up prompt and closing line run on time. The server also closes any viva that runs past its slot.
 6. **Marks and feedback.** After the viva, Claude Opus 5.5 scores the full transcript. Each of the 5 rubric dimensions gets a 0–5 score, a one-line reason and the transcript lines that support it. The app computes the weighted total out of 100 and 3–5 feedback lines, each with line references.

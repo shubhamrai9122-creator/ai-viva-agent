@@ -157,3 +157,33 @@ test('scorer: request shape, weighted total, and evidence validation', async () 
   assert.ok(reasons.some(r => /Very short answers/.test(r)), 'short transcript still forces review');
   assert.equal(result.prompt_version, scorer.SCORER_PROMPT_VERSION);
 });
+
+test('uploads: Claude reads PDFs as document blocks and images as image blocks', async () => {
+  const qb = await import('../src/questionbank.js');
+  const { makePdf } = await import('../scripts/make-sample-pdf.js');
+  const v = viva();
+  const extracted = { document_type: 'question_paper', questions: [
+    { text: 'What is a B+ tree?', topic: 'indexing', kind: 'concept', difficulty: 'medium', expected: 'Balanced tree; leaves linked; range scans.' }] };
+  replies.push(message(extracted), message(extracted));
+  const pdf = await qb.importDocument({ buf: makePdf(['1. What is a B+ tree?']), viva: v });
+  const png = await qb.importDocument({ buf: fs.readFileSync(new URL('../data/samples/dbms-question-paper.png', import.meta.url)), viva: v });
+  assert.equal(pdf.method, 'claude-question_paper');
+  assert.equal(pdf.questions[0].text, 'What is a B+ tree?');
+  const [doc, img] = requests.map(r => r.body.messages[0].content);
+  assert.equal(doc[0].type, 'document');
+  assert.equal(doc[0].source.media_type, 'application/pdf');
+  assert.equal(Buffer.from(doc[0].source.data, 'base64').subarray(0, 4).toString(), '%PDF');
+  assert.equal(img[0].type, 'image');
+  assert.equal(img[0].source.media_type, 'image/png');
+  assert.equal(doc[1].type, 'text', 'instructions follow the file');
+  assert.equal(requests[0].body.model, 'claude-opus-5-5');
+});
+
+test('uploads: if Claude fails, the PDF is read locally instead', async () => {
+  const qb = await import('../src/questionbank.js');
+  const { makePdf } = await import('../scripts/make-sample-pdf.js');
+  for (let i = 0; i < 3; i++) replies.push({ status: 500, body: { type: 'error', error: { type: 'api_error', message: 'down' } } });
+  const r = await qb.importDocument({ buf: makePdf(['1. What is normalization?', '2. Why do we use indexes?']), viva: viva() });
+  assert.equal(r.method, 'pdf-text');
+  assert.equal(r.questions.length, 2);
+});

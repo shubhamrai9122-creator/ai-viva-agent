@@ -1,43 +1,76 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Faculty Dashboard</title><link rel="stylesheet" href="/style.css"></head>
-<body><header class="top"><b>AI Viva &middot; Faculty</b><nav><span class="small muted" id="mode"></span><a href="#" id="logout">Lock</a></nav></header>
-<main>
-<section id="gate" class="card hidden" style="max-width:420px"><h2>Faculty passcode</h2><input id="pass" type="password"><p class="err" id="gate-err"></p><button id="unlock">Unlock</button></section>
-<div id="app" class="hidden">
-  <div class="tabs"><button data-t="results" class="on">Results</button><button data-t="vivas">Vivas & question banks</button><button data-t="calib">Calibration</button></div>
-
-  <section data-p="results">
-    <div class="card"><div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
-      <h2 style="margin:0">Viva results</h2>
-      <label style="display:flex;gap:6px;align-items:center;margin:0;color:var(--ink)"><input type="checkbox" id="only-review" style="width:auto"> Needs review only</label>
-      <input id="search" placeholder="Search student ID / name" style="max-width:240px">
-      <a id="export" style="margin-left:auto"><button class="ghost">Export CSV</button></a></div>
-      <div id="results" style="margin-top:12px;overflow-x:auto"></div></div>
+<title>Faculty Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css"><script src="/ui.js"></script></head>
+<body>
+<header class="topbar"><a class="brand" href="/"><span class="brand-mark"><span data-icon="mic"></span></span>AI Viva <span class="muted" style="font-weight:500">· Faculty</span></a>
+  <span class="spacer"></span><span class="chip warn hidden" id="mode" title="No Anthropic API key is set, so interviews use rules and marks use a simple heuristic. Every viva is flagged for review.">Practice scoring</span>
+  <button class="ghost hidden" id="logout">Lock</button></header>
+<main class="page">
+  <section id="gate" class="card hidden" style="max-width:420px;margin:40px auto">
+    <h1>Faculty sign in</h1><p class="muted">Enter the faculty passcode to manage vivas and review marks.</p>
+    <label for="pass">Passcode</label><input id="pass" type="password" autocomplete="current-password">
+    <p class="msg" id="gate-msg"></p><div class="actions"><button id="unlock">Unlock</button></div>
   </section>
 
-  <section data-p="vivas" class="hidden">
-    <div class="card"><h2>Create a viva</h2>
-      <div class="row"><div><label>Subject</label><input id="v-subject" placeholder="Database Management Systems"></div>
-        <div><label>Code (optional)</label><input id="v-code" placeholder="auto"></div>
-        <div><label>Difficulty</label><select id="v-diff"><option>easy</option><option selected>medium</option><option>hard</option></select></div></div>
-      <label>Topics (comma-separated)</label><input id="v-topics" placeholder="normalization, indexing, transactions, SQL joins">
-      <label>Phase timings in seconds (must total at most 870, i.e. 14:30, leaving 30 s for scoring hand-off)</label><div class="row" id="v-phases"></div>
-      <label>Question bank: upload CSV/JSON (columns: text, topic, kind [concept|depth|applied], difficulty, expected)</label>
-      <input type="file" id="v-file" accept=".csv,.json,text/csv,application/json">
-      <p class="small muted">Or leave empty and generate questions from a syllabus after creating the viva (you approve each one).</p>
-      <p class="err" id="v-err"></p><button id="v-create">Create viva</button></div>
-    <div class="card"><h2>Vivas</h2><div id="vivas"></div></div>
-    <div class="card hidden" id="qpanel"><h2 id="q-title"></h2>
-      <div class="row"><div><label>Generate from syllabus (AI drafts, you approve)</label><textarea id="q-syllabus" placeholder="Paste syllabus units..."></textarea>
-        <button id="q-gen" style="margin-top:8px">Generate draft questions</button></div>
-        <div><label>Upload more questions (CSV/JSON)</label><input type="file" id="q-file" accept=".csv,.json"><p class="small muted">Uploaded questions are approved immediately.</p></div></div>
-      <p class="err" id="q-err"></p>
-      <div style="margin:10px 0"><button class="ghost" id="q-approve">Approve selected</button></div>
-      <div id="qlist" style="overflow-x:auto"></div></div>
-  </section>
+  <div id="app" class="hidden">
+    <div class="tabs" role="tablist"><button data-t="results" class="on">Results</button><button data-t="vivas">Vivas and questions</button><button data-t="calib">Calibration</button></div>
 
-  <section data-p="calib" class="hidden"><div class="card"><h2>Calibration: AI marks vs faculty marks</h2>
-    <p class="small muted">Every faculty override is a calibration point. Re-mark a sample of vivas blind, enter your mark as an override, and compare here.</p>
-    <div id="calib"></div></div></section>
-</div></main>
+    <section data-p="results">
+      <div class="stats" id="stats"></div>
+      <div class="card">
+        <div class="card-head"><h2>Viva results</h2><span class="spacer"></span>
+          <input id="search" placeholder="Search name, ID or email" style="max-width:260px">
+          <label class="switch"><input type="checkbox" id="only-review"> Needs review</label>
+          <a id="export" class="btn secondary">Export CSV</a></div>
+        <div class="table-wrap" id="results"></div>
+      </div>
+    </section>
+
+    <section data-p="vivas" class="hidden">
+      <div class="grid2">
+        <div class="card">
+          <h2>Create a viva</h2>
+          <div class="row"><div><label for="v-subject">Subject</label><input id="v-subject" placeholder="Database Management Systems"></div>
+            <div style="flex:0 1 160px"><label for="v-code">Code <span class="hint">(optional)</span></label><input id="v-code" placeholder="Auto"></div></div>
+          <div class="row"><div><label for="v-topics">Topics <span class="hint">(comma-separated)</span></label><input id="v-topics" placeholder="normalization, indexing, transactions"></div>
+            <div style="flex:0 1 160px"><label for="v-diff">Difficulty</label><select id="v-diff"><option>easy</option><option selected>medium</option><option>hard</option></select></div></div>
+          <label>Phase timings <span class="hint">(seconds; at most 14:30 in total, leaving 30 s to hand over for marking)</span></label>
+          <div class="row" id="v-phases"></div>
+          <p class="small muted" id="v-total" style="margin-top:8px"></p>
+          <label>Questions <span class="hint">(optional, you can add them later)</span></label>
+          <label class="drop" id="v-drop"><input type="file" id="v-file" accept=".csv,.json,.pdf,.png,.jpg,.jpeg,text/csv,application/json,application/pdf,image/png,image/jpeg">
+            <span data-icon="upload"></span><div><b>Upload a question bank, question paper or syllabus</b></div>
+            <div class="small muted">CSV or JSON, or a PDF, PNG or JPG. Questions read from a PDF or image are added as drafts for you to approve.</div>
+            <div class="file" id="v-file-name"></div></label>
+          <p class="msg" id="v-msg"></p>
+          <div class="actions"><button id="v-create">Create viva</button></div>
+        </div>
+        <div class="card"><h2>Your vivas</h2><div class="table-wrap" id="vivas"></div></div>
+      </div>
+
+      <div class="card hidden" id="qpanel">
+        <div class="card-head"><h2 id="q-title"></h2><span class="spacer"></span><button class="ghost" id="q-close">Close</button></div>
+        <div class="row">
+          <div><label class="drop" id="q-drop"><input type="file" id="q-file" accept=".csv,.json,.pdf,.png,.jpg,.jpeg,text/csv,application/json,application/pdf,image/png,image/jpeg">
+            <span data-icon="upload"></span><div><b>Add questions from a file</b></div>
+            <div class="small muted">CSV or JSON are added as approved. PDF, PNG or JPG are read and added as drafts.</div></label></div>
+          <div><label for="q-syllabus" style="margin-top:0">Or let the AI draft questions from a syllabus</label><textarea id="q-syllabus" placeholder="Paste syllabus units..."></textarea>
+            <div class="actions" style="margin-top:10px"><button class="secondary" id="q-gen">Draft questions</button></div></div>
+        </div>
+        <p class="msg" id="q-msg"></p>
+        <div class="card-head" style="margin-top:14px"><h3 style="margin:0">Questions</h3><span class="small muted" id="q-counts"></span><span class="spacer"></span>
+          <button class="ghost" id="q-select">Select all drafts</button><button id="q-approve">Approve selected</button></div>
+        <div class="table-wrap" id="qlist"></div>
+      </div>
+    </section>
+
+    <section data-p="calib" class="hidden">
+      <div class="card"><h2>Calibration: AI marks vs faculty marks</h2>
+        <p class="muted">Every faculty override counts as a calibration point. Re-mark a sample of vivas yourself, enter your mark as an override, and compare here.</p>
+        <div id="calib"></div></div>
+    </section>
+  </div>
+</main>
 <script src="/faculty.js"></script></body></html>

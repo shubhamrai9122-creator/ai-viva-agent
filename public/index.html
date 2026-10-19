@@ -1,9 +1,29 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>AI Viva Agent</title><link rel="stylesheet" href="/style.css"></head>
-<body><header class="top"><b>AI Viva Agent</b></header>
-<main><div class="card"><h1>AI Viva Agent</h1>
-<p class="muted">A 15-minute voice viva with adaptive follow-ups, rubric scoring, and a full audit trail.</p>
-<div class="row"><a href="/student.html"><button>I'm a student</button></a><a href="/faculty.html"><button class="ghost">Faculty dashboard</button></a></div>
-<p class="small muted" id="mode"></p></div></main>
-<script>fetch('/api/health').then(r=>r.json()).then(h=>{document.getElementById('mode').textContent=`Server mode: ${h.mode==='mock'?'MOCK (no API key: rule-based interviewer and heuristic scorer)':'LLM ('+h.interviewerModel+' interviewer, '+h.scorerModel+' scorer)'}`})</script>
-</body></html>
+<title>AI Viva</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css"><script src="/ui.js"></script></head>
+<body>
+<header class="topbar"><a class="brand" href="/"><span class="brand-mark"><span data-icon="mic"></span></span>AI Viva</a><span class="spacer"></span>
+  <a class="btn secondary" href="/faculty.html">Faculty sign in</a></header>
+<main class="page">
+  <section class="hero">
+    <div>
+      <span class="eyebrow">Technical viva, made fair</span>
+      <h1>A calm, consistent examiner for every student</h1>
+      <p class="lead">A 15-minute spoken viva that adapts to each answer, marks against a clear rubric, and keeps the recording and transcript so faculty can check every mark.</p>
+      <div class="actions"><a class="btn big" href="/student.html">Start my viva</a><a class="btn big secondary" href="/faculty.html">Set up or review vivas</a></div>
+    </div>
+    <div class="preview" aria-hidden="true">
+      <div class="viva-top"><div><div class="small muted">Time remaining</div><div class="timer">12:48</div></div><span class="spacer" style="flex:1"></span><span class="status"><span class="dot listen"></span>Listening</span></div>
+      <div class="phases"><div class="past"><div class="bar"></div><div class="lbl">Warm-up</div></div><div class="on"><div class="bar"></div><div class="lbl">Fundamentals</div></div><div><div class="bar"></div><div class="lbl">Depth</div></div><div><div class="bar"></div><div class="lbl">Applied</div></div><div><div class="bar"></div><div class="lbl">Wrap-up</div></div></div>
+      <div class="examiner" style="margin-top:20px"><div class="avatar speaking"><span data-icon="headset"></span></div><div><b>Examiner</b><div class="small muted">Database Management Systems</div></div></div>
+      <div class="question" style="font-size:20px">Good. When would you deliberately denormalize a schema, and what do you give up?</div>
+    </div>
+  </section>
+  <section class="features">
+    <div class="feature"><div class="icon"><span data-icon="branch"></span></div><h3>Adapts to each answer</h3><p class="muted small">Goes deeper after a strong answer, gives one hint after a partial one, and moves on kindly after "I don't know".</p></div>
+    <div class="feature"><div class="icon"><span data-icon="scale"></span></div><h3>Same rules for everyone</h3><p class="muted small">Every student gets the same structure, time and rubric. Marks are given after the viva, each linked to what the student said.</p></div>
+    <div class="feature"><div class="icon"><span data-icon="eye"></span></div><h3>Every mark can be checked</h3><p class="muted small">Faculty can replay the audio, read the transcript, see why each mark was given, and override it with a reason.</p></div>
+  </section>
+</main></body></html>

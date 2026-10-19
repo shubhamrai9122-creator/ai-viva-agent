@@ -24,12 +24,16 @@ const post = async (p, body, headers = {}) => {
 async function student(code, i, deadline, m) {
   const audio = Buffer.alloc(40_000, i % 255);   // ~5 s of opus audio is ~30-40 KB
   try {
-    const j = await post('/api/student/join', { code, studentId: `LT-${Date.now()}-${i}`, name: `Bot ${i}`, consent: true });
+    // Bots skip the email step: faculty can mint student tokens for load tests.
+    const studentId = `LT-${Date.now()}-${i}`;
+    const { token } = await post('/api/faculty/student-token', { email: `${studentId.toLowerCase()}@loadtest.example` }, { 'x-faculty-key': KEY });
+    const S = { 'x-student-token': token };
+    const j = await post('/api/student/join', { code, studentId, name: `Bot ${i}`, consent: true }, S);
     const sid = j.sessionId;
-    await post(`/api/student/sessions/${sid}/start`, {});
+    await post(`/api/student/sessions/${sid}/start`, {}, S);
     const seg = Date.now();
     const audioTimer = setInterval(() => {
-      fetch(`${BASE}/api/student/sessions/${sid}/audio?seg=${seg}&t=0`, { method: 'POST', body: audio })
+      fetch(`${BASE}/api/student/sessions/${sid}/audio?seg=${seg}&t=0`, { method: 'POST', headers: S, body: audio })
         .then(r => { m.audioOk += r.ok; m.audioErr += !r.ok; }).catch(() => m.audioErr++);
     }, 5000);
     let done = false, n = 0;
@@ -37,13 +41,13 @@ async function student(code, i, deadline, m) {
       await sleep(2000 + Math.random() * 4000);   // compressed speak + think time
       const t0 = performance.now();
       try {
-        const r = await post(`/api/student/sessions/${sid}/turn`, { text: ANSWERS[(i + n++) % ANSWERS.length], spokenMs: 8000, turnKey: `${sid}-${n}` });
+        const r = await post(`/api/student/sessions/${sid}/turn`, { text: ANSWERS[(i + n++) % ANSWERS.length], spokenMs: 8000, turnKey: `${sid}-${n}` }, S);
         m.lat.push(performance.now() - t0); m.turns++;
         done = r.done;
       } catch { m.turnErr++; }
     }
     clearInterval(audioTimer);
-    await post(`/api/student/sessions/${sid}/end`, { reason: 'loadtest' });
+    await post(`/api/student/sessions/${sid}/end`, { reason: 'loadtest' }, S);
     m.completed++;
   } catch (e) { m.dropped++; m.errors.push(e.message); }
 }

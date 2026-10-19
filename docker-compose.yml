@@ -10,6 +10,13 @@ services:
       INTERVIEWER_MODEL: ${INTERVIEWER_MODEL:-claude-haiku-5-5}
       SCORER_MODEL: ${SCORER_MODEL:-claude-opus-5-5}
       SCORING_CONCURRENCY: ${SCORING_CONCURRENCY:-4}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      MAIL_FROM: ${MAIL_FROM:-}
+      ALLOWED_EMAIL_DOMAINS: ${ALLOWED_EMAIL_DOMAINS:-}
+      AUTH_SECRET: ${AUTH_SECRET:-}
     volumes:
       - viva-data:/data
     restart: unless-stopped

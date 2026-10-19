@@ -2,7 +2,7 @@
 
 Status as of 2026-10-19. Everything below ran in **mock mode** (rule-based interviewer, heuristic scorer) because no Anthropic API key was available. The Claude request path is tested against a local fake of the API (§1b), but not against Anthropic's real servers yet. The sections marked **TODO** need an API key or consented volunteers; the scripts are included.
 
-## 1. Automated tests: `npm test` (17/17 pass)
+## 1. Automated tests: `npm test` (21/21 pass)
 
 | Test | What it checks |
 |---|---|
@@ -17,7 +17,9 @@ Status as of 2026-10-19. Everything below ran in **mock mode** (rule-based inter
 | hard time limit | Any turn after 14:30 closes the viva |
 | full time for a student who skips everything | With the 11-question sample bank, a student answering "I don't know" every 20 s reaches wrap-up within 75 s of 13:00 (by design, no new applied problem starts with under 75 s left) |
 | tiny bank | A 3-question bank that runs out is flagged (`bank_exhausted`), not silently ended early |
-| full lifecycle (HTTP) | Faculty auth; viva code checked before consent; duplicate codes and over-long phases rejected; CSV upload; AI-drafted questions start unapproved; consent required; idempotent retry; audio upload; rejoin; no retake; evidence cites real lines; mandatory review; bank-ran-out flag (including at 0 s); override logged; CSV export; calibration |
+| email sign-in | Bad email rejected; 30 s resend cooldown; wrong code rejected; codes are single-use; email is case-insensitive; tampered tokens rejected; 5 wrong tries lock the code |
+| PDF / image upload | A question paper PDF yields 6 draft questions, including one that runs over two lines; a syllabus PDF with no questions yields drafted ones; unsupported and corrupt files are rejected cleanly; Claude receives PDFs as document blocks and images as image blocks; if Claude fails, the PDF is read locally |
+| full lifecycle (HTTP) | Sign-in required to join; a student can't answer someone else's viva or reuse another student's ID; faculty auth; viva code checked before consent; duplicate codes and over-long phases rejected; CSV upload; AI-drafted questions start unapproved; consent required; idempotent retry; audio upload; rejoin; no retake; evidence cites real lines; mandatory review; bank-ran-out flag (including at 0 s); override logged; CSV export; calibration |
 
 ### 1b. Claude integration against a fake Messages API: `tests/llm.test.js` (5 tests)
 A local HTTP server stands in for Anthropic's API, so the real SDK request path runs without a key. Checked:

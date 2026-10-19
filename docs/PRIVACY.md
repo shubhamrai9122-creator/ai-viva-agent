@@ -1,6 +1,7 @@
 # Privacy note
 
 ## What is stored
+- Student email addresses, verified by a one-time code, with first and last sign-in times. Codes are stored only as a keyed hash and deleted once used; they expire after 10 minutes and lock after 5 wrong tries.
 - Student ID, name, consent timestamp and chosen language
 - Audio recording of the student's microphone (WebM/Opus segments)
 - Timestamped transcript, the question asked at each turn, the examiner's replies and per-turn metadata
@@ -14,6 +15,8 @@
 - Third parties that process data in transit:
   - **Anthropic API.** Receives transcript text, both for live turns and for scoring. It does not receive audio. Data is handled under Anthropic's commercial terms and is not used for model training.
   - **Google, via Chrome.** Chrome's built-in speech recognition sends microphone audio to Google to transcribe it. If that isn't acceptable, switch STT to a self-hosted model (faster-whisper). See DESIGN.md §5.
+
+Uploaded question papers and syllabi (PDF, PNG, JPG) are not kept. Only the questions taken from them are stored. With an API key, the file is sent to the Anthropic API to be read; without one, it is read on the server.
 
 ## Who can access it
 - **Students:** only their own live session. They can't see scores or other students.

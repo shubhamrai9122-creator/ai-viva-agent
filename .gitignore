@@ -5,3 +5,6 @@ test-results/db/
 test-results/loaddb/
 .env
 .claude/
+data/.auth-secret
+data/ocr-cache/
+*.traineddata

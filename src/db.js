@@ -45,6 +45,12 @@ CREATE INDEX IF NOT EXISTS idx_events_session ON events(session_id);
 CREATE INDEX IF NOT EXISTS idx_q_viva ON questions(viva_id);
 `);
 
+// Migrations for databases created by earlier versions.
+if (!db.prepare('PRAGMA table_info(sessions)').all().some(c => c.name === 'student_email')) {
+  db.exec('ALTER TABLE sessions ADD COLUMN student_email TEXT');
+}
+db.exec('CREATE INDEX IF NOT EXISTS idx_sessions_email ON sessions(viva_id, student_email)');
+
 export const uid = (p = '') => p + crypto.randomBytes(8).toString('hex');
 export const nowIso = () => new Date().toISOString();
 const J = (s, d = null) => { try { return s == null ? d : JSON.parse(s); } catch { return d; } };

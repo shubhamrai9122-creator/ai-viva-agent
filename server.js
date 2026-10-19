@@ -7,7 +7,9 @@ import { db, uid, nowIso, getViva, listVivas, getQuestions, insertQuestions, get
 import { DEFAULT_PHASES, DEFAULT_RUBRIC, SLOT_SECONDS, MAX_ANSWER_SECONDS, env, MOCK } from './src/config.js';
 import { greeting, initialState, nextTurn, totalSeconds, slotSeconds, timePhaseIndex, INTERVIEWER_PROMPT_VERSION } from './src/interviewer.js';
 import { enqueueScoring, resumeQueue, queueStats } from './src/queue.js';
-import { parseBank, generateBank } from './src/questionbank.js';
+import { parseBank, generateBank, importDocument, sniffType } from './src/questionbank.js';
+import { requestCode, verifyCode, readToken, issueToken, normaliseEmail, checkEmail } from './src/auth.js';
+import { EMAIL_MODE } from './src/mailer.js';
 import { transcriptLines } from './src/scorer.js';
 import { stats as llmStats } from './src/llm.js';
 
@@ -25,7 +27,7 @@ app.get('/api/health', (req, res) => {
   const sorted = [...latencies].sort((a, b) => a - b);
   const p = q => sorted.length ? sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))] : null;
   const active = db.prepare("SELECT COUNT(*) AS n FROM sessions WHERE status = 'active'").get().n;
-  res.json({ ok: true, mode: MOCK ? 'mock' : 'llm', interviewerModel: env.interviewerModel, scorerModel: env.scorerModel,
+  res.json({ ok: true, mode: MOCK ? 'mock' : 'llm', emailMode: EMAIL_MODE, interviewerModel: env.interviewerModel, scorerModel: env.scorerModel,
     activeSessions: active, turnLatencyMs: { n: sorted.length, p50: p(0.5), p95: p(0.95) }, llm: llmStats, queue: queueStats(),
     memoryMB: Math.round(process.memoryUsage().rss / 1e6) });
 });
@@ -71,6 +73,22 @@ app.post('/api/faculty/vivas/:id/generate', faculty, wrap(async (req, res) => {
   res.json({ added: ids.length });
 }));
 
+// PDF / PNG / JPG question paper or syllabus -> draft questions awaiting approval.
+app.post('/api/faculty/vivas/:id/import', faculty, express.raw({ type: () => true, limit: '15mb' }), wrap(async (req, res) => {
+  const v = getViva(req.params.id); if (!v) return bad(res, 404, 'viva not found');
+  if (!Buffer.isBuffer(req.body) || !req.body.length) return bad(res, 400, 'empty file');
+  const type = sniffType(req.body);
+  if (!type) return bad(res, 400, 'Unsupported file. Upload a PDF, PNG or JPG (or CSV/JSON for a ready-made bank).');
+  try {
+    const { questions, method } = await importDocument({ buf: req.body, viva: v });
+    const ids = insertQuestions(v.id, questions, `${type.kind}-import`, false);
+    res.json({ added: ids.length, method });
+  } catch (err) {
+    if (err.status) return bad(res, err.status, err.message);
+    throw err;
+  }
+}));
+
 app.get('/api/faculty/vivas/:id/questions', faculty, (req, res) => res.json(getQuestions(req.params.id, false)));
 app.post('/api/faculty/questions/approve', faculty, (req, res) => {
   const { ids = [], approved = true } = req.body;
@@ -83,6 +101,44 @@ app.delete('/api/faculty/questions/:id', faculty, (req, res) => {
   res.json({ ok: true });
 });
 
+// ---------- student sign-in (email one-time code) ----------
+app.post('/api/auth/request-code', wrap(async (req, res) => {
+  const r = await requestCode(req.body?.email);
+  if (r.error) { if (r.retryAfter) res.set('retry-after', String(r.retryAfter)); return bad(res, r.status, r.error); }
+  res.json({ ok: true, email: r.email, delivery: EMAIL_MODE });
+}));
+app.post('/api/auth/verify', (req, res) => {
+  const r = verifyCode(req.body?.email, req.body?.code);
+  if (r.error) return bad(res, r.status, r.error);
+  res.json(r);
+});
+app.get('/api/auth/me', (req, res) => {
+  const email = readToken(req.get('x-student-token'));
+  if (!email) return bad(res, 401, 'not signed in');
+  res.json({ email });
+});
+// Faculty can mint a student token for load tests and demos (never needed by real students).
+app.post('/api/faculty/student-token', faculty, (req, res) => {
+  const email = normaliseEmail(req.body?.email);
+  const err = checkEmail(email); if (err) return bad(res, 400, err);
+  res.json({ token: issueToken(email), email });
+});
+
+function studentAuth(req, res, next) {
+  const email = readToken(req.get('x-student-token'));
+  if (!email) return bad(res, 401, 'Please sign in with your email first');
+  req.studentEmail = email;
+  next();
+}
+// Every viva request must come from the student who started it.
+function ownSession(req, res, next) {
+  const s = getSession(req.params.id);
+  if (!s) return bad(res, 404, 'session not found');
+  if (s.student_email !== req.studentEmail) return bad(res, 403, 'This viva belongs to a different student');
+  next();
+}
+app.all('/api/student/sessions/:id/*', studentAuth, ownSession);
+
 // ---------- student: join, consent, interview ----------
 // Lets the join page check the code up front and show the real duration in the rules.
 app.get('/api/student/vivas/:code', (req, res) => {
@@ -92,14 +148,18 @@ app.get('/api/student/vivas/:code', (req, res) => {
   res.json(publicViva(v));
 });
 
-app.post('/api/student/join', wrap(async (req, res) => {
+app.post('/api/student/join', studentAuth, wrap(async (req, res) => {
   const { code, studentId, name, consent, language = 'en-IN' } = req.body;
+  const email = req.studentEmail;
   const v = getViva(String(code || '').trim().toUpperCase()) || getViva(String(code || '').trim());
   if (!v) return bad(res, 404, 'Viva code not found');
   if (!studentId) return bad(res, 400, 'Student ID required');
   if (!consent) return bad(res, 400, 'Consent to recording is required to take the viva');
   if (!getQuestions(v.id).length) return bad(res, 409, 'This viva has no approved questions yet');
-  const existing = db.prepare('SELECT id FROM sessions WHERE viva_id = ? AND student_id = ?').get(v.id, String(studentId).trim());
+  // One attempt per student: matched by verified email, and a student ID can't be reused by another email.
+  const byId = db.prepare('SELECT id, student_email FROM sessions WHERE viva_id = ? AND student_id = ?').get(v.id, String(studentId).trim());
+  if (byId && byId.student_email !== email) return bad(res, 409, 'This student ID has already been used for this viva with a different email. Contact your examiner.');
+  const existing = db.prepare('SELECT id FROM sessions WHERE viva_id = ? AND student_email = ?').get(v.id, email) || byId;
   if (existing) {
     const s = getSession(existing.id);
     if (s.status === 'ended') return bad(res, 409, 'You have already completed this viva');
@@ -108,9 +168,9 @@ app.post('/api/student/join', wrap(async (req, res) => {
     return res.json({ sessionId: s.id, resumed: !!s.started_at, viva: publicViva(v) });
   }
   const id = uid('s_');
-  db.prepare(`INSERT INTO sessions (id, viva_id, student_id, student_name, language, consent_at, status, state, score_status)
-    VALUES (?,?,?,?,?,?,'joined',?, 'pending')`).run(id, v.id, String(studentId).trim(), name || '', language, nowIso(), JSON.stringify(initialState()));
-  addAudit(id, `student:${studentId}`, 'consented', { language });
+  db.prepare(`INSERT INTO sessions (id, viva_id, student_id, student_name, student_email, language, consent_at, status, state, score_status)
+    VALUES (?,?,?,?,?,?,?,'joined',?, 'pending')`).run(id, v.id, String(studentId).trim(), name || '', email, language, nowIso(), JSON.stringify(initialState()));
+  addAudit(id, `student:${email}`, 'consented', { language, studentId: String(studentId).trim() });
   res.json({ sessionId: id, resumed: false, viva: publicViva(v) });
 }));
 
@@ -213,7 +273,7 @@ setInterval(() => {
 
 // ---------- faculty: review dashboard ----------
 app.get('/api/faculty/sessions', faculty, (req, res) => {
-  const rows = db.prepare(`SELECT s.id, s.student_id, s.student_name, s.status, s.score_status, s.ai_total, s.final_total, s.needs_review,
+  const rows = db.prepare(`SELECT s.id, s.student_id, s.student_name, s.student_email, s.status, s.score_status, s.ai_total, s.final_total, s.needs_review,
     s.started_at, s.ended_at, s.override, v.subject, v.code FROM sessions s JOIN vivas v ON v.id = s.viva_id ORDER BY s.started_at DESC`).all();
   res.json(rows.map(r => ({ ...r, overridden: !!r.override, override: undefined })));
 });
@@ -279,10 +339,10 @@ app.get('/api/faculty/export.csv', faculty, (req, res) => {
   const rows = db.prepare(`SELECT s.*, v.subject, v.code FROM sessions s JOIN vivas v ON v.id = s.viva_id ORDER BY v.code, s.student_id`).all();
   const keys = DEFAULT_RUBRIC.map(r => r.key);
   const esc = x => `"${String(x ?? '').replace(/"/g, '""')}"`;
-  const lines = [['viva_code', 'subject', 'student_id', 'name', 'status', 'ai_total', 'final_total', 'overridden_by', 'override_reason', 'needs_review', ...keys, 'prompt_version', 'scorer_model'].join(',')];
+  const lines = [['viva_code', 'subject', 'student_id', 'name', 'email', 'status', 'ai_total', 'final_total', 'overridden_by', 'override_reason', 'needs_review', ...keys, 'prompt_version', 'scorer_model'].join(',')];
   for (const r of rows) {
     const sc = r.score ? JSON.parse(r.score) : null, ov = r.override ? JSON.parse(r.override) : null;
-    lines.push([r.code, r.subject, r.student_id, r.student_name, r.status, r.ai_total, r.final_total, ov?.reviewer, ov?.reason, r.needs_review,
+    lines.push([r.code, r.subject, r.student_id, r.student_name, r.student_email, r.status, r.ai_total, r.final_total, ov?.reviewer, ov?.reason, r.needs_review,
       ...keys.map(k => sc?.dimensions.find(d => d.key === k)?.score), sc?.prompt_version, sc?.model].map(esc).join(','));
   }
   res.type('text/csv').attachment('viva-results.csv').send(lines.join('\n'));

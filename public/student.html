@@ -1,42 +1,118 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Student Viva</title><link rel="stylesheet" href="/style.css"></head>
-<body><header class="top"><b>AI Viva</b><span class="muted small" id="who"></span></header>
-<main style="max-width:760px">
-<section id="s-join" class="card"><h1>Join your viva</h1>
-  <label>Viva code</label><input id="code" placeholder="e.g. DBMS-1234" autocomplete="off">
-  <div class="row"><div><label>Student ID</label><input id="sid" autocomplete="off"></div><div><label>Name</label><input id="sname"></div></div>
-  <label>Speech language</label><select id="lang"><option value="en-IN">English (India)</option><option value="hi-IN">Hindi / Hinglish</option><option value="en-US">English (US)</option></select>
-  <p class="err" id="join-err"></p><button id="to-rules">Continue</button></section>
+<title>Student Viva</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css"><script src="/ui.js"></script></head>
+<body>
+<header class="topbar"><a class="brand" href="/"><span class="brand-mark"><span data-icon="mic"></span></span>AI Viva</a><span class="spacer"></span>
+  <span class="who" id="who"></span><button class="ghost hidden" id="sign-out">Sign out</button></header>
+<main class="page narrow" id="main">
+  <ol class="stepper" id="stepper">
+    <li data-step="s-signin"><span class="n">1</span>Sign in</li>
+    <li data-step="s-details"><span class="n">2</span>Viva details</li>
+    <li data-step="s-rules"><span class="n">3</span>Rules</li>
+    <li data-step="s-viva"><span class="n">4</span>Viva</li>
+  </ol>
 
-<section id="s-rules" class="card hidden"><h1>Rules and consent</h1>
-  <p class="muted" id="viva-info"></p>
-  <ul>
-    <li id="rule-length">The viva lasts <b>15 minutes</b> in five parts: warm-up, fundamentals, depth, an applied problem, and wrap-up. The timer is always visible.</li>
-    <li>The AI examiner speaks each question aloud and listens to your answer. Answer in your own words. Hindi/English mixing is fine.</li>
-    <li>Each answer is capped at about 90 seconds. Saying "I don't know" is fine; the examiner moves on.</li>
-    <li>Stay on this tab. Tab switches, long silences and pasted text are logged for faculty review.</li>
-    <li>The examiner will not reveal answers or marks. Marks are given after the viva and reviewed by faculty.</li>
-    <li>If you get disconnected, rejoin with the same code and ID. The clock keeps running.</li>
-  </ul>
-  <label style="display:flex;gap:8px;align-items:flex-start;color:var(--ink)"><input type="checkbox" id="consent" style="width:auto;margin-top:4px">
-  <span>I consent to this viva being audio-recorded and transcribed. The recording, transcript and scores are stored for assessment and audit and are visible only to authorised faculty.</span></label>
-  <h3>Microphone check</h3><div class="meter"><i id="mic-level"></i></div><p class="small muted" id="mic-msg">Click "Test microphone" and say something.</p>
-  <div class="row"><button class="ghost" id="mic-test">Test microphone</button><button id="start" disabled>Start viva</button></div>
-  <p class="err" id="rules-err"></p></section>
+  <section id="s-signin" class="card hidden">
+    <h1>Sign in with your email</h1>
+    <p class="muted">We'll send a 6-digit code to confirm it's you. New students sign in the same way.</p>
+    <div id="email-step">
+      <label for="email">Email</label><input id="email" type="email" autocomplete="email" placeholder="you@college.edu">
+      <div class="actions"><button id="send-code"><span data-icon="mail"></span>Send code</button></div>
+    </div>
+    <div id="code-step" class="hidden">
+      <p>Enter the code we sent to <b id="sent-to"></b>.</p>
+      <input id="otp" class="code-input" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="••••••" aria-label="6-digit code">
+      <div class="actions"><button id="verify">Verify</button><button class="secondary" id="resend">Resend code</button><button class="ghost" id="change-email">Use a different email</button></div>
+      <div class="note hidden" id="console-note">Email isn't set up on this server yet, so the code was printed in the server window instead. Ask your examiner for it.</div>
+    </div>
+    <p class="msg" id="signin-msg"></p>
+  </section>
 
-<section id="s-viva" class="card hidden">
-  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
-    <div><div class="small muted">Time remaining</div><div class="timer" id="timer">15:00</div></div>
-    <div class="status"><span class="dot" id="dot"></span><span id="status">Starting...</span></div>
-  </div>
-  <div class="phases" id="phases"></div>
-  <h3>Examiner</h3><div class="say" id="say"></div>
-  <h3>You <span class="small muted" id="answer-clock"></span></h3><div class="heard" id="heard"></div>
-  <div class="meter" style="margin-top:8px"><i id="level"></i></div>
-  <div class="row" style="margin-top:12px"><button id="done-btn" disabled>I'm done answering</button><button class="ghost" id="type-btn">Type instead</button></div>
-  <div id="type-box" class="hidden"><label>Typed answer (use only if your microphone fails)</label><textarea id="typed"></textarea><button id="send-typed" style="margin-top:8px">Send answer</button></div>
-  <p class="err" id="viva-err"></p></section>
+  <section id="s-details" class="card hidden">
+    <h1>Your viva</h1>
+    <p class="muted">Enter the viva code your examiner gave you.</p>
+    <label for="code">Viva code</label><input id="code" placeholder="e.g. DBMS-1234" autocomplete="off">
+    <div class="row">
+      <div><label for="sid">Student ID</label><input id="sid" autocomplete="off"></div>
+      <div><label for="sname">Full name</label><input id="sname" autocomplete="name"></div>
+    </div>
+    <label for="lang">Language you'll speak</label>
+    <select id="lang"><option value="en-IN">English (India)</option><option value="hi-IN">Hindi / Hinglish</option><option value="en-US">English (US)</option><option value="en-GB">English (UK)</option></select>
+    <p class="msg" id="details-msg"></p>
+    <div class="actions"><button id="to-rules">Continue</button></div>
+  </section>
 
-<section id="s-done" class="card hidden"><h1>Viva complete</h1><p>Thank you. Your recording and transcript are saved. Your marks will be shared after faculty review.</p></section>
+  <section id="s-rules" class="card hidden">
+    <h1>Before you start</h1>
+    <p class="muted" id="viva-info"></p>
+    <ul class="rules">
+      <li><span data-icon="clock"></span><span id="rule-length">The viva lasts 15 minutes. The timer is always on screen.</span></li>
+      <li><span data-icon="headset"></span><span>The examiner asks each question out loud and on screen. Answer by speaking or typing, in English, Hindi or a mix.</span></li>
+      <li><span data-icon="branch"></span><span>Each answer can be up to about 90 seconds. It's fine to say "I don't know"; the examiner simply moves on.</span></li>
+      <li><span data-icon="shield"></span><span>Stay on this tab. Switching tabs, long silences and pasted text are noted for your examiner.</span></li>
+      <li><span data-icon="scale"></span><span>The examiner won't reveal answers or marks. Marks come after the viva and are checked by faculty.</span></li>
+      <li><span data-icon="replay"></span><span>If you get disconnected, sign in again with the same email and viva code. The clock keeps running.</span></li>
+    </ul>
+
+    <h3>Examiner voice</h3>
+    <div class="row" style="align-items:flex-end">
+      <div><label for="voice">Voice</label><select id="voice"></select></div>
+      <div style="flex:0 0 auto"><button class="secondary" id="voice-test"><span data-icon="speaker"></span>Play sample</button></div>
+    </div>
+    <div style="margin-top:14px"><label class="switch"><input type="checkbox" id="voice-on" checked> Read questions aloud</label>
+      <p class="small muted" style="margin-top:6px">Turn this off to just read the questions on screen. You can change it during the viva.</p></div>
+
+    <h3>Microphone</h3>
+    <div class="meter"><i id="mic-level"></i></div>
+    <p class="small muted" id="mic-msg" style="margin-top:8px">Test your microphone and say something. You can also type your answers.</p>
+    <button class="secondary" id="mic-test"><span data-icon="mic"></span>Test microphone</button>
+
+    <label class="check"><input type="checkbox" id="consent"><span>I agree to this viva being recorded and transcribed. The recording, transcript and marks are kept for assessment and audit, and only authorised faculty can see them.</span></label>
+    <p class="msg" id="rules-msg"></p>
+    <div class="actions"><button class="big" id="start" disabled>Start viva</button></div>
+  </section>
+
+  <section id="s-viva" class="hidden">
+    <div class="card">
+      <div class="viva-top">
+        <div><h2 style="margin:0" id="viva-subject"></h2><div class="small muted" id="viva-student"></div></div>
+        <span style="flex:1"></span>
+        <div style="text-align:right"><div class="small muted">Time remaining</div><div class="timer" id="timer">15:00</div></div>
+      </div>
+      <div class="phases" id="phases"></div>
+    </div>
+    <div class="grid2">
+      <div class="card">
+        <div class="examiner"><div class="avatar" id="avatar"><span data-icon="headset"></span></div>
+          <div><b>Examiner</b><div class="status"><span class="dot" id="dot"></span><span id="status">Starting...</span></div></div></div>
+        <div class="question" id="say" aria-live="polite"></div>
+        <div class="actions">
+          <button class="secondary" id="stop-voice"><span data-icon="stop"></span>Stop voice</button>
+          <button class="secondary" id="replay"><span data-icon="replay"></span>Read aloud again</button>
+          <label class="switch" style="margin-left:auto"><input type="checkbox" id="voice-toggle" checked> Voice</label>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h2>Your answer</h2><span class="spacer"></span><span class="small muted" id="answer-clock"></span></div>
+        <textarea id="answer" class="answer-box" placeholder="Speak, or type your answer here..."></textarea>
+        <div class="heard" id="heard"></div>
+        <div class="meter" style="margin-top:6px" id="level-meter"><i id="level"></i></div>
+        <div class="actions">
+          <button class="secondary mic-btn" id="mic"><span data-icon="mic"></span><span id="mic-label">Mic on</span></button>
+          <button id="submit" disabled><span data-icon="check"></span>Submit answer</button>
+        </div>
+        <p class="small muted" style="margin-top:12px" id="answer-help">When you stop speaking for about two seconds, your answer is sent automatically. If you type, press Submit when you're done.</p>
+      </div>
+    </div>
+    <p class="msg" id="viva-msg"></p>
+  </section>
+
+  <section id="s-done" class="card hidden" style="text-align:center">
+    <div class="done-icon" style="margin:6px auto 14px"><span data-icon="check"></span></div>
+    <h1>Viva complete</h1>
+    <p class="muted">Thank you. Your recording and transcript are saved. Your marks will be shared after faculty review.</p>
+  </section>
 </main>
 <script src="/student.js"></script></body></html>
