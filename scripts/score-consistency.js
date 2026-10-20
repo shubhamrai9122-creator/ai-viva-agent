@@ -10,7 +10,7 @@ const dir = path.resolve('test-results/personas');
 const out = [];
 for (const f of fs.readdirSync(dir).filter(f => f.endsWith('.session'))) {
   const sid = fs.readFileSync(path.join(dir, f), 'utf8').trim();
-  const s = getSession(sid); const v = getViva(s.viva_id);
+  const s = await getSession(sid); const v = await getViva(s.viva_id);
   const totals = [], dims = {};
   for (let i = 0; i < runs; i++) {
     const { result } = await scoreSession(s, v);

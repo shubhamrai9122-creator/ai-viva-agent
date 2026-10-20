@@ -22,7 +22,7 @@ function loadSecret() {
 }
 const SECRET = loadSecret();
 
-db.exec(`
+await db.exec(`
 CREATE TABLE IF NOT EXISTS students (email TEXT PRIMARY KEY, verified_at TEXT, last_login_at TEXT);
 CREATE TABLE IF NOT EXISTS login_codes (
   id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT, code_hash TEXT, expires_at INTEGER, attempts INTEGER DEFAULT 0, created_at INTEGER
@@ -51,13 +51,13 @@ export async function requestCode(rawEmail) {
   if (bad) return { error: bad, status: 400 };
   const real = await checkEmailIsReal(email);   // ValidateEasy: real, non-disposable address?
   if (!real.ok) return { error: real.error, status: 400 };
-  const last = db.prepare('SELECT created_at FROM login_codes WHERE email = ? ORDER BY id DESC LIMIT 1').get(email);
+  const last = await db.prepare('SELECT created_at FROM login_codes WHERE email = ? ORDER BY id DESC LIMIT 1').get(email);
   if (last && Date.now() - last.created_at < RESEND_AFTER_MS) {
     return { error: 'Please wait a few seconds before asking for another code', status: 429, retryAfter: Math.ceil((RESEND_AFTER_MS - (Date.now() - last.created_at)) / 1000) };
   }
   const code = String(crypto.randomInt(0, 1_000_000)).padStart(6, '0');
-  db.prepare('DELETE FROM login_codes WHERE email = ?').run(email);
-  db.prepare('INSERT INTO login_codes (email, code_hash, expires_at, created_at) VALUES (?,?,?,?)').run(email, hashCode(email, code), Date.now() + CODE_TTL_MS, Date.now());
+  await db.prepare('DELETE FROM login_codes WHERE email = ?').run(email);
+  await db.prepare('INSERT INTO login_codes (email, code_hash, expires_at, created_at) VALUES (?,?,?,?)').run(email, hashCode(email, code), Date.now() + CODE_TTL_MS, Date.now());
   await sendLoginCode(email, code);
   // DEMO_SHOW_CODE=1 (demo deployments without email) returns the code so the page can show it.
   // It is ignored once real email (SMTP) is configured.
@@ -66,17 +66,17 @@ export async function requestCode(rawEmail) {
 }
 
 /** Returns { token, email } or { error, status }. */
-export function verifyCode(rawEmail, rawCode) {
+export async function verifyCode(rawEmail, rawCode) {
   const email = normaliseEmail(rawEmail);
   const code = String(rawCode || '').replace(/\D/g, '');
-  const row = db.prepare('SELECT * FROM login_codes WHERE email = ? ORDER BY id DESC LIMIT 1').get(email);
+  const row = await db.prepare('SELECT * FROM login_codes WHERE email = ? ORDER BY id DESC LIMIT 1').get(email);
   if (!row || row.expires_at < Date.now()) return { error: 'This code has expired. Ask for a new one.', status: 400 };
   if (row.attempts >= MAX_ATTEMPTS) return { error: 'Too many wrong attempts. Ask for a new code.', status: 429 };
-  db.prepare('UPDATE login_codes SET attempts = attempts + 1 WHERE id = ?').run(row.id);
+  await db.prepare('UPDATE login_codes SET attempts = attempts + 1 WHERE id = ?').run(row.id);
   const ok = code.length === 6 && crypto.timingSafeEqual(Buffer.from(hashCode(email, code)), Buffer.from(row.code_hash));
   if (!ok) return { error: 'That code is not right. Check the email and try again.', status: 400 };
-  db.prepare('DELETE FROM login_codes WHERE email = ?').run(email);
-  db.prepare(`INSERT INTO students (email, verified_at, last_login_at) VALUES (?,?,?)
+  await db.prepare('DELETE FROM login_codes WHERE email = ?').run(email);
+  await db.prepare(`INSERT INTO students (email, verified_at, last_login_at) VALUES (?,?,?)
     ON CONFLICT(email) DO UPDATE SET last_login_at = excluded.last_login_at`).run(email, nowIso(), nowIso());
   return { token: issueToken(email), email };
 }

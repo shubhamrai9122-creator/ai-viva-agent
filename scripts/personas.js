@@ -27,13 +27,13 @@ const personas = {
 
 const outDir = path.resolve('test-results/personas');
 fs.mkdirSync(outDir, { recursive: true });
-const viva = createViva();
+const viva = await createViva();
 const summary = [];
 for (const [name, fn] of Object.entries(personas)) {
   const { sessionId, elapsed, latencies } = await simulateViva(viva, `persona-${name}-${Date.now()}`, fn);
-  const { result, needsReview, reasons } = await scoreSession(getSession(sessionId), getViva(viva.id));
+  const { result, needsReview, reasons } = await scoreSession(await getSession(sessionId), await getViva(viva.id));
   const md = `# Persona: ${name}\n\nMode: ${MOCK ? 'mock (rule-based interviewer, heuristic scorer)' : `LLM (${env.interviewerModel} / ${env.scorerModel})`}  \n` +
-    `Simulated duration: ${Math.round(elapsed)} s  \nSession: ${sessionId}\n\n## Transcript\n\n${transcriptMarkdown(sessionId)}\n\n## Score: ${result.total}/100\n\n` +
+    `Simulated duration: ${Math.round(elapsed)} s  \nSession: ${sessionId}\n\n## Transcript\n\n${await transcriptMarkdown(sessionId)}\n\n## Score: ${result.total}/100\n\n` +
     result.dimensions.map(d => `- **${d.label}**: ${d.score}/5 - ${d.reason} (evidence: ${d.evidence.map(e => e.line).join(', ') || 'none'})`).join('\n') +
     `\n\nFeedback:\n${result.feedback.map(f => `- ${f.text} (${f.evidence.join(', ')})`).join('\n')}\n\nNeeds review: ${needsReview} ${reasons.join('; ')}\n`;
   fs.writeFileSync(path.join(outDir, `${name}.md`), md);

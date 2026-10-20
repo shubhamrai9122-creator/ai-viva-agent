@@ -107,8 +107,7 @@ function heuristicScore(lines) {
 
 export async function scoreSession(session, viva) {
   const rubric = viva.rubric?.length ? viva.rubric : DEFAULT_RUBRIC;
-  const turns = getTurns(session.id);
-  const events = getEvents(session.id);
+  const [turns, events] = await Promise.all([getTurns(session.id), getEvents(session.id)]);
   const lines = transcriptLines(turns);
   const lineIds = new Set(lines.map(l => l.line));
   const transcript = lines.map(l => `${l.line} [${l.ts}] ${l.role}: ${l.text}`).join('\n');

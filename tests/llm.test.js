@@ -51,10 +51,12 @@ async function turn(state, answer) {
   return interviewer.nextTurn({ viva: viva(), session: { state }, bank, history: [], answer, elapsed: 100 });
 }
 let vivaObj;
-const viva = () => vivaObj ||= (() => { const v = sim.createViva('LLM-TEST'); bank = db.getQuestions(v.id); return v; })();
+let vivaP;
+const viva = () => vivaObj;
+const ready = async () => { if (!vivaObj) { vivaObj = await sim.createViva('LLM-TEST'); bank = await db.getQuestions(vivaObj.id); } return vivaObj; };
 
 test('interviewer turn: request shape and a deeper follow-up', async () => {
-  viva();
+  await ready();
   replies.push(message({ assessment: 'strong', action: 'deeper', say: 'Why is indexing an array O(1) but finding the k-th node of a linked list O(n)?' }));
   const r = await turn(fundamentalsState(), 'Arrays use contiguous memory with constant-time indexing; linked lists use nodes and pointers.');
   assert.equal(r.mode, 'llm');
@@ -118,13 +120,13 @@ test('callJSON: refusals throw; temperature 0 only for models that accept it', a
 });
 
 test('scorer: request shape, weighted total, and evidence validation', async () => {
-  const v = viva();
+  const v = await ready();
   const sid = db.uid('s_');
-  db.db.prepare(`INSERT INTO sessions (id, viva_id, student_id, student_name, started_at, status, state, score_status)
+  await db.db.prepare(`INSERT INTO sessions (id, viva_id, student_id, student_name, started_at, status, state, score_status)
     VALUES (?,?,?,?,?,'ended','{}','queued')`).run(sid, v.id, 'S-LLM', 'Asha', Date.now());
   const lines = [['ai', 'Tell me about a project you built.'], ['student', 'I built a bus route planner using a graph, breadth-first search and a hash map of stop names.'],
     ['ai', bank[0].text], ['student', 'Arrays are contiguous with O(1) indexing; linked lists use pointers.']];
-  lines.forEach(([role, text], i) => db.addTurn({ session_id: sid, role, text, t_start: i * 20, phase: i < 2 ? 'warmup' : 'fundamentals' }));
+  for (const [i, [role, text]] of lines.entries()) await db.addTurn({ session_id: sid, role, text, t_start: i * 20, phase: i < 2 ? 'warmup' : 'fundamentals' });
   replies.push(message({
     dimensions: [
       { key: 'conceptual', score: 4, reason: 'Correct comparison of arrays and linked lists.', evidence: ['L4'] },
@@ -137,7 +139,7 @@ test('scorer: request shape, weighted total, and evidence validation', async () 
       { text: 'Practise reasoning aloud on scenarios.', evidence: [] }],
     confidence: 'high', manipulation_attempt: false, flags: [],
   }, { model: 'claude-opus-5-5' }));
-  const { result, reasons } = await scorer.scoreSession(db.getSession(sid), v);
+  const { result, reasons } = await scorer.scoreSession(await db.getSession(sid), v);
 
   const { url, headers, body } = requests[0];
   assert.equal(body.model, 'claude-opus-5-5');
@@ -161,7 +163,7 @@ test('scorer: request shape, weighted total, and evidence validation', async () 
 test('uploads: Claude reads PDFs as document blocks and images as image blocks', async () => {
   const qb = await import('../src/questionbank.js');
   const { makePdf } = await import('../scripts/make-sample-pdf.js');
-  const v = viva();
+  const v = await ready();
   const extracted = { document_type: 'question_paper', questions: [
     { text: 'What is a B+ tree?', topic: 'indexing', kind: 'concept', difficulty: 'medium', expected: 'Balanced tree; leaves linked; range scans.' }] };
   replies.push(message(extracted), message(extracted));
@@ -183,7 +185,7 @@ test('uploads: if Claude fails, the PDF is read locally instead', async () => {
   const qb = await import('../src/questionbank.js');
   const { makePdf } = await import('../scripts/make-sample-pdf.js');
   for (let i = 0; i < 3; i++) replies.push({ status: 500, body: { type: 'error', error: { type: 'api_error', message: 'down' } } });
-  const r = await qb.importDocument({ buf: makePdf(['1. What is a stack?', '2. Why do we use hash tables?']), viva: viva() });
+  const r = await qb.importDocument({ buf: makePdf(['1. What is a stack?', '2. Why do we use hash tables?']), viva: await ready() });
   assert.equal(r.method, 'pdf-text');
   assert.equal(r.questions.length, 2);
 });
