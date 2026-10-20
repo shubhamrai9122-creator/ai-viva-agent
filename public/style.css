@@ -207,3 +207,8 @@ tbody tr:hover td { background: var(--cream); }
 label.drop { display: block; font-weight: 400; font-size: 14px; margin: 0; }
 .review-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 20px; align-items: start; }
 @media (max-width: 560px) { .review-head { grid-template-columns: 1fr; } }
+.viva-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; margin: 6px 0 4px; }
+.viva-card { display: block; text-align: left; white-space: normal; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line-strong); background: #fff; color: var(--ink); font-weight: 400; }
+.viva-card:hover { background: var(--choc-soft); border-color: var(--caramel); }
+.viva-card.on { border-color: var(--choc); background: var(--choc-soft); }
+.viva-card b { font: 600 15px/1.2 ui-monospace, Menlo, monospace; color: var(--choc-dark); letter-spacing: .5px; }

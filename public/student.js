@@ -105,6 +105,22 @@ $('#otp').removeAttribute('maxlength');   // allow pasting "837 823" or "837-823
 $('#otp').addEventListener('input', () => { $('#otp').value = $('#otp').value.replace(/\D/g, '').slice(0, 6); if ($('#otp').value.length === 6) verify(); });
 
 // ---------- 2. viva details ----------
+async function loadVivaList() {
+  try {
+    const vivas = await (await fetch('/api/student/vivas')).json();
+    const describe = v => v.format === 'timed'
+      ? `${v.questionCount} questions · ${v.secondsPerQuestion === 60 ? '1 minute' : v.secondsPerQuestion + ' s'} each`
+      : 'Full 15-minute viva with follow-ups';
+    $('#viva-list').innerHTML = vivas.map(v => `<button type="button" class="viva-card" data-code="${esc(v.code)}"><b>${esc(v.code)}</b>
+      <div class="small">${esc(v.subject)}</div><div class="small muted">${describe(v)}</div></button>`).join('');
+    for (const b of $$('.viva-card')) b.onclick = () => {
+      $('#code').value = b.dataset.code;
+      for (const x of $$('.viva-card')) x.classList.toggle('on', x === b);
+      $('#sid').focus();
+    };
+  } catch {}
+}
+loadVivaList();
 $('#to-rules').onclick = async () => {
   if (!$('#code').value.trim() || !$('#sid').value.trim()) return msg('#details-msg', 'Enter the viva code and your student ID.');
   try {

@@ -177,3 +177,9 @@ test('quick viva: 5 questions, 1 minute each, marked on 4 dimensions', async () 
   assert.deepEqual(d.session.score.dimensions.map(x => x.key), ['conceptual', 'depth', 'problem_solving', 'communication']);
   assert.equal(d.transcript.filter(l => l.role === 'STUDENT').length, 5);
 });
+
+test('student page lists the available viva codes', async () => {
+  const list = (await call('/api/student/vivas')).body;
+  assert.ok(Array.isArray(list) && list.length > 0);
+  assert.ok(list.every(v => v.code && v.subject && v.format));
+});

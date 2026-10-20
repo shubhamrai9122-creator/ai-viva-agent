@@ -153,6 +153,13 @@ const ownSession = wrap(async (req, res, next) => {
 app.all('/api/student/sessions/:id/*', studentAuth, ownSession);
 
 // ---------- student: join, consent, interview ----------
+// Viva codes shown on the student page so they can pick one (LIST_VIVA_CODES=0 hides them).
+app.get('/api/student/vivas', wrap(async (req, res) => {
+  if (process.env.LIST_VIVA_CODES === '0') return res.json([]);
+  const vivas = (await listVivas()).filter(v => v.approved_questions > 0);
+  res.json(vivas.map(v => ({ code: v.code, subject: v.subject, format: v.format, questionCount: v.questionCount, secondsPerQuestion: v.secondsPerQuestion })));
+}));
+
 // Lets the join page check the code up front and show the real duration in the rules.
 app.get('/api/student/vivas/:code', wrap(async (req, res) => {
   const v = await getViva(String(req.params.code || '').trim().toUpperCase());
@@ -371,17 +378,26 @@ app.get('/api/faculty/export.csv', faculty, wrap(async (req, res) => {
   res.type('text/csv').attachment('viva-results.csv').send(lines.join('\n'));
 }));
 
-// Demo viva so a fresh install is usable immediately (disable with SEED_DEMO=0).
+// Demo vivas so a fresh install is usable immediately (disable with SEED_DEMO=0).
+const DEMO_VIVAS = [
+  { code: 'DS-DEMO', format: 'timed', questionCount: 5, secondsPerQuestion: 60 },
+  { code: 'DS-PRACTICE', format: 'timed', questionCount: 3, secondsPerQuestion: 60 },
+  { code: 'DS-FULL', format: 'phased' },
+];
 async function seedDemo() {
-  if (process.env.SEED_DEMO === '0' || await getViva('DS-DEMO')) return;
-  const id = uid('v_');
+  if (process.env.SEED_DEMO === '0') return;
   const topics = ['arrays and linked lists', 'stacks', 'queues', 'hashing', 'trees', 'heaps', 'graphs', 'sorting'];
-  await db.prepare('INSERT INTO vivas (id, code, subject, topics, difficulty, phases, rubric, created_at, format, question_count, seconds_per_question) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
-    .run(id, 'DS-DEMO', 'Data Structures', JSON.stringify(topics), 'medium', JSON.stringify(DEFAULT_PHASES), JSON.stringify(QUICK_RUBRIC), nowIso(),
-      'timed', QUICK_DEFAULTS.questionCount, QUICK_DEFAULTS.secondsPerQuestion);
   const bank = JSON.parse(fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), 'data/samples/ds-question-bank.json'), 'utf8'));
-  await insertQuestions(id, bank, 'sample', true);
-  console.log('Seeded demo viva DS-DEMO (Data Structures, 5 questions x 1 minute)');
+  for (const d of DEMO_VIVAS) {
+    if (await getViva(d.code)) continue;
+    const id = uid('v_');
+    const timed = d.format === 'timed';
+    await db.prepare('INSERT INTO vivas (id, code, subject, topics, difficulty, phases, rubric, created_at, format, question_count, seconds_per_question) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
+      .run(id, d.code, 'Data Structures', JSON.stringify(topics), 'medium', JSON.stringify(DEFAULT_PHASES), JSON.stringify(timed ? QUICK_RUBRIC : DEFAULT_RUBRIC), nowIso(),
+        d.format, timed ? d.questionCount : null, timed ? d.secondsPerQuestion : null);
+    await insertQuestions(id, bank, 'sample', true);
+    console.log(`Seeded demo viva ${d.code}`);
+  }
 }
 
 if (SERVERLESS) await seedDemo().catch(err => console.error('[seed]', err.message));   // two instances racing: the code is UNIQUE, so one insert simply fails
