@@ -7,7 +7,7 @@ import { db, uid, nowIso, getViva, listVivas, getQuestions, insertQuestions, get
 import { DEFAULT_PHASES, DEFAULT_RUBRIC, QUICK_DEFAULTS, QUICK_RUBRIC, SLOT_SECONDS, MAX_ANSWER_SECONDS, env, MOCK } from './src/config.js';
 import { greeting, initialState, nextTurn, totalSeconds, timePhaseIndex, INTERVIEWER_PROMPT_VERSION,
   isTimed, startTimed, nextTimedTurn, vivaSlotSeconds, phaseOfQuestion } from './src/interviewer.js';
-import { enqueueScoring, resumeQueue, queueStats } from './src/queue.js';
+import { enqueueScoring, resumeQueue, queueStats, scoreNow, SERVERLESS } from './src/queue.js';
 import { parseBank, generateBank, importDocument, sniffType } from './src/questionbank.js';
 import { requestCode, verifyCode, readToken, issueToken, normaliseEmail, checkEmail } from './src/auth.js';
 import { EMAIL_MODE } from './src/mailer.js';
@@ -116,7 +116,7 @@ app.delete('/api/faculty/questions/:id', faculty, (req, res) => {
 app.post('/api/auth/request-code', wrap(async (req, res) => {
   const r = await requestCode(req.body?.email);
   if (r.error) { if (r.retryAfter) res.set('retry-after', String(r.retryAfter)); return bad(res, r.status, r.error); }
-  res.json({ ok: true, email: r.email, delivery: EMAIL_MODE });
+  res.json({ ok: true, email: r.email, delivery: EMAIL_MODE, ...(r.demoCode ? { demoCode: r.demoCode } : {}) });
 }));
 app.post('/api/auth/verify', (req, res) => {
   const r = verifyCode(req.body?.email, req.body?.code);
@@ -271,14 +271,14 @@ app.post('/api/student/sessions/:id/audio', express.raw({ type: () => true, limi
   res.json({ ok: true, bytes: req.body.length });
 });
 
-app.post('/api/student/sessions/:id/end', (req, res) => {
+app.post('/api/student/sessions/:id/end', wrap(async (req, res) => {
   const s = getSession(req.params.id); if (!s) return bad(res, 404, 'session not found');
   if (s.status === 'ended') return res.json({ ok: true });
   db.prepare("UPDATE sessions SET status = 'ended', ended_at = ? WHERE id = ?").run(Date.now(), s.id);
   addEvent(s.id, s.started_at ? elapsedOf(s) : 0, 'ended', { reason: req.body?.reason || 'completed' });
-  enqueueScoring(s.id);
+  if (SERVERLESS) await scoreNow(s.id); else enqueueScoring(s.id);
   res.json({ ok: true });
-});
+}));
 
 // Server-side hard limit: close any viva past its slot even if the browser vanished.
 setInterval(() => {
@@ -334,13 +334,13 @@ app.post('/api/faculty/sessions/:id/override', faculty, (req, res) => {
   res.json({ ok: true });
 });
 
-app.post('/api/faculty/sessions/:id/rescore', faculty, (req, res) => {
+app.post('/api/faculty/sessions/:id/rescore', faculty, wrap(async (req, res) => {
   const s = getSession(req.params.id); if (!s) return bad(res, 404, 'session not found');
   if (s.status !== 'ended') return bad(res, 409, 'session not ended');
   addAudit(s.id, 'faculty', 'rescore_requested', {});
-  enqueueScoring(s.id);
+  if (SERVERLESS) await scoreNow(s.id); else enqueueScoring(s.id);
   res.json({ ok: true });
-});
+}));
 
 app.get('/api/faculty/calibration', faculty, (req, res) => {
   const rows = db.prepare('SELECT ai_total, override FROM sessions WHERE override IS NOT NULL AND ai_total IS NOT NULL').all()
@@ -381,6 +381,8 @@ function seedDemo() {
   insertQuestions(id, bank, 'sample', true);
   console.log('Seeded demo viva DS-DEMO (Data Structures, 5 questions x 1 minute)');
 }
+
+if (SERVERLESS) seedDemo();
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   resumeQueue();

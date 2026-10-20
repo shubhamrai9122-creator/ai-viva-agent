@@ -71,6 +71,7 @@ async function sendCode() {
     const r = await api('/api/auth/request-code', { email: value }, { tries: 2 });
     $('#sent-to').textContent = r.email;
     $('#console-note').classList.toggle('hidden', r.delivery !== 'console');
+    if (r.demoCode) $('#console-note').innerHTML = `<b>Demo mode:</b> email sending is switched off on this demo site, so here is your code: <b style="font-size:18px;letter-spacing:3px">${esc(r.demoCode)}</b>`;
     $('#email-step').classList.add('hidden'); $('#code-step').classList.remove('hidden');
     $('#otp').value = ''; $('#otp').focus();
     startCooldown(30);

@@ -19,6 +19,14 @@ export function resumeQueue() {
 
 export const queueStats = () => ({ pending: pending.length, running });
 
+// Serverless hosts (Vercel) freeze the function once the response is sent, so there the
+// marking is awaited inside the request instead of running in the background.
+export const SERVERLESS = !!process.env.VERCEL;
+export async function scoreNow(sessionId) {
+  db.prepare("UPDATE sessions SET score_status = 'queued' WHERE id = ?").run(sessionId);
+  await run(sessionId);
+}
+
 function pump() {
   while (running < env.scoringConcurrency && pending.length) {
     const id = pending.shift();

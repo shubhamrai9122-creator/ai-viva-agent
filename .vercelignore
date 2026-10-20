@@ -1,0 +1,11 @@
+# Never upload local secrets or data
+.env
+.env.*
+!.env.example
+data/viva.db*
+data/audio/
+data/backup-*/
+data/.auth-secret
+data/ocr-cache/
+test-results/
+.claude/

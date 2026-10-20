@@ -4,7 +4,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { db, DATA_DIR, nowIso } from './db.js';
-import { sendLoginCode } from './mailer.js';
+import { sendLoginCode, EMAIL_MODE } from './mailer.js';
 import { checkEmailIsReal } from './emailcheck.js';
 
 const CODE_TTL_MS = 10 * 60 * 1000;
@@ -59,7 +59,10 @@ export async function requestCode(rawEmail) {
   db.prepare('DELETE FROM login_codes WHERE email = ?').run(email);
   db.prepare('INSERT INTO login_codes (email, code_hash, expires_at, created_at) VALUES (?,?,?,?)').run(email, hashCode(email, code), Date.now() + CODE_TTL_MS, Date.now());
   await sendLoginCode(email, code);
-  return { ok: true, email };
+  // DEMO_SHOW_CODE=1 (demo deployments without email) returns the code so the page can show it.
+  // It is ignored once real email (SMTP) is configured.
+  const demoCode = process.env.DEMO_SHOW_CODE === '1' && EMAIL_MODE === 'console' ? code : null;
+  return { ok: true, email, demoCode };
 }
 
 /** Returns { token, email } or { error, status }. */

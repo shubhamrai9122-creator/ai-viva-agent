@@ -5,7 +5,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 
-export const DATA_DIR = path.resolve(process.env.DATA_DIR || 'data');
+// On Vercel only /tmp is writable, and it is temporary: data there can vanish at any time.
+export const DATA_DIR = path.resolve(process.env.DATA_DIR || (process.env.VERCEL ? '/tmp/ai-viva' : 'data'));
 export const AUDIO_DIR = path.join(DATA_DIR, 'audio');
 fs.mkdirSync(AUDIO_DIR, { recursive: true });
 
