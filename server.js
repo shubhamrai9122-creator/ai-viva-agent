@@ -156,7 +156,7 @@ app.all('/api/student/sessions/:id/*', studentAuth, ownSession);
 // Viva codes shown on the student page so they can pick one (LIST_VIVA_CODES=0 hides them).
 app.get('/api/student/vivas', wrap(async (req, res) => {
   if (process.env.LIST_VIVA_CODES === '0') return res.json([]);
-  const vivas = (await listVivas()).filter(v => v.approved_questions > 0);
+  const vivas = (await listVivas()).filter(v => v.approved_questions > 0).sort((a, b) => a.created_at.localeCompare(b.created_at));   // oldest (DS-DEMO) first
   res.json(vivas.map(v => ({ code: v.code, subject: v.subject, format: v.format, questionCount: v.questionCount, secondsPerQuestion: v.secondsPerQuestion })));
 }));
 
