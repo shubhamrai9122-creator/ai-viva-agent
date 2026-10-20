@@ -93,6 +93,14 @@ async function verify() {
   $('#verify').disabled = false;
 }
 $('#verify').onclick = verify;
+$('#paste-code').onclick = async () => {
+  try {
+    const digits = ((await navigator.clipboard.readText()).match(/\d[\d\s-]{4,}\d/) || [''])[0].replace(/\D/g, '');
+    if (digits.length !== 6) return msg('#signin-msg', "No 6-digit code found on your clipboard. Copy the code from the email first.");
+    $('#otp').value = digits; verify();
+  } catch { msg('#signin-msg', 'Your browser blocked reading the clipboard. Click the box and paste with Ctrl+V (or Cmd+V).'); $('#otp').focus(); }
+};
+$('#otp').removeAttribute('maxlength');   // allow pasting "837 823" or "837-823"
 $('#otp').addEventListener('input', () => { $('#otp').value = $('#otp').value.replace(/\D/g, '').slice(0, 6); if ($('#otp').value.length === 6) verify(); });
 
 // ---------- 2. viva details ----------
@@ -102,7 +110,12 @@ $('#to-rules').onclick = async () => {
     const v = await api(`/api/student/vivas/${encodeURIComponent($('#code').value.trim())}`, null, { method: 'GET', tries: 2 });
     const mins = Math.ceil(v.interviewSeconds / 60);
     $('#viva-info').textContent = `${v.subject}${v.topics.length ? ': ' + v.topics.join(', ') : ''}`;
-    $('#rule-length').innerHTML = `The viva lasts <b>${mins} minutes</b> in ${v.phases.length} parts: ${v.phases.map(p => esc(p.label.toLowerCase())).join(', ')}. The timer is always on screen.`;
+    $('#rule-length').innerHTML = v.format === 'timed'
+      ? `There are <b>${v.questionCount} questions</b>. You get <b>${v.secondsPerQuestion === 60 ? '1 minute' : v.secondsPerQuestion + ' seconds'}</b> to answer each one. Each question's clock starts after it has been read out.`
+      : `The viva lasts <b>${mins} minutes</b> in ${v.phases.length} parts: ${v.phases.map(p => esc(p.label.toLowerCase())).join(', ')}. The timer is always on screen.`;
+    $('#rule-answer').textContent = v.format === 'timed'
+      ? 'If you finish early, press Submit to go to the next question. When the time is up, your answer is sent as it is. It\'s fine to say "I don\'t know".'
+      : 'Each answer can be up to about 90 seconds. It\'s fine to say "I don\'t know"; the examiner simply moves on.';
     msg('#details-msg', ''); show('s-rules');
   } catch (e) { msg('#details-msg', e.message); }
 };
@@ -167,11 +180,45 @@ async function getMic() {
   }, 100);
   return stream;
 }
-const canStart = () => { $('#start').disabled = !($('#consent').checked && (stream || micFailed)); };
+// The mic check is optional: only consent is needed to start.
+const canStart = () => { $('#start').disabled = !$('#consent').checked; };
+const chip = (sel, cls, text) => { const el = $(sel); el.className = `chip ${cls}`; el.textContent = text; };
+let heardSound = false;
 $('#mic-test').onclick = async () => {
-  try { await getMic(); $('#mic-msg').textContent = SR ? 'Microphone works. Speak and watch the bar move.' : 'Microphone works, but this browser cannot turn speech into text. Use Chrome or Edge to speak your answers, or type them.'; }
-  catch { micFailed = true; $('#mic-msg').textContent = 'No microphone access. Allow it in your browser and test again, or start anyway and type your answers (this is noted for your examiner).'; }
-  canStart();
+  $('#mic-test').disabled = true; heardSound = false;
+  try { await getMic(); }
+  catch {
+    micFailed = true; chip('#chk-mic', 'bad', 'Microphone: blocked');
+    $('#mic-msg').textContent = 'Your browser did not allow the microphone. You can still start the viva and type your answers.';
+    $('#mic-test').disabled = false; return;
+  }
+  chip('#chk-mic', 'plain', 'Microphone: listening...');
+  $('#mic-msg').innerHTML = 'Say: <b>"I am ready for my viva."</b>';
+  const level = setInterval(() => { if (parseFloat($('#mic-level').style.width) > 8 && !heardSound) { heardSound = true; chip('#chk-mic', 'ok', 'Microphone: working'); } }, 100);
+  let finish = () => {};
+  const done = new Promise(r => { finish = r; });
+  if (SR) {
+    const rec = new SR(); rec.lang = $('#lang').value; rec.interimResults = true; rec.continuous = false;
+    chip('#chk-stt', 'plain', 'Speech-to-text: listening...');
+    rec.onresult = e => {
+      const t = [...e.results].map(r => r[0].transcript).join(' ').trim();
+      if (t) $('#mic-msg').innerHTML = `We heard: <b>"${esc(t)}"</b>`;
+      if (e.results[e.results.length - 1].isFinal && t) { chip('#chk-stt', 'ok', 'Speech-to-text: working'); finish(); }
+    };
+    rec.onerror = e => { chip('#chk-stt', 'warn', e.error === 'not-allowed' ? 'Speech-to-text: blocked' : 'Speech-to-text: no speech heard'); finish(); };
+    rec.onend = () => finish();
+    try { rec.start(); } catch { finish(); }
+    setTimeout(() => { try { rec.stop(); } catch {} finish(); }, 8000);
+  } else {
+    chip('#chk-stt', 'warn', 'Speech-to-text: not in this browser');
+    setTimeout(finish, 4000);
+  }
+  await done; clearInterval(level);
+  if (!heardSound) chip('#chk-mic', 'warn', 'Microphone: no sound heard');
+  if (!$('#chk-stt').classList.contains('ok')) $('#mic-msg').textContent = SR
+    ? "We couldn't hear any words. Check your microphone, or just type your answers."
+    : 'This browser can\'t turn speech into text. Use Chrome or Edge to speak, or type your answers.';
+  $('#mic-test').disabled = false; $('#mic-test').lastChild.textContent = 'Check again';
 };
 $('#consent').onchange = canStart;
 
@@ -182,8 +229,11 @@ $('#start').onclick = async () => {
     sessionId = j.sessionId; viva = j.viva;
     $('#viva-subject').textContent = viva.subject;
     $('#viva-student').textContent = `${$('#sname').value.trim() || email} · ${$('#sid').value.trim()}`;
-    $('#phases').innerHTML = viva.phases.map(p => `<div data-k="${p.key}"><div class="bar"></div><div class="lbl">${esc(p.label)}</div></div>`).join('');
+    const steps = viva.format === 'timed' ? Array.from({ length: viva.questionCount }, (_, i) => ({ key: `q${i + 1}`, label: `Q${i + 1}` })) : viva.phases;
+    $('#phases').innerHTML = steps.map(p => `<div data-k="${p.key}"><div class="bar"></div><div class="lbl">${esc(p.label)}</div></div>`).join('');
+    if (viva.format === 'timed') { $('#timer-label').textContent = 'Time for this answer'; $('#answer-clock').classList.add('hidden'); }
     $('#voice-toggle').checked = voiceOn;
+    if (!stream && !micFailed) { try { await getMic(); } catch { micFailed = true; } }   // the mic check was optional
     show('s-viva');
     if (!SR || !stream) { typeOnly(); event(stream ? 'stt_unavailable' : 'mic_muted', { reason: stream ? 'no speech recognition in this browser' : 'no microphone access' }); }
     const r = await api(`/api/student/sessions/${sessionId}/start`);
@@ -198,7 +248,11 @@ function typeOnly() {
   micOn = false; $('#mic').classList.add('hidden'); $('#level-meter').classList.add('hidden');
   $('#answer-help').textContent = 'Type your answer, then press Submit (or Ctrl + Enter).';
 }
-function sync(r) { clockOffset = Date.now() - r.elapsed * 1000; viva.interviewSeconds = r.interviewSeconds; setPhase(r.phase); }
+function sync(r) {
+  clockOffset = Date.now() - r.elapsed * 1000; viva.interviewSeconds = r.interviewSeconds;
+  if (viva.format === 'timed') { setPhase(`q${r.questionNumber}`); $('#q-of').textContent = `Question ${r.questionNumber} of ${r.questionCount}`; }
+  else setPhase(r.phase);
+}
 function setPhase(k) {
   let past = true;
   for (const d of $$('#phases > div')) { const on = d.dataset.k === k; if (on) past = false; d.classList.toggle('on', on); d.classList.toggle('past', past && !on); }
@@ -206,6 +260,15 @@ function setPhase(k) {
 function tick() {
   if (finished) return;
   const el = (Date.now() - clockOffset) / 1000;
+  if (viva.format === 'timed') {
+    // Each question has its own clock, started once the question has been read out.
+    const left = listening ? viva.secondsPerQuestion - (Date.now() - listenStart) / 1000 : viva.secondsPerQuestion;
+    $('#timer').textContent = fmt(left);
+    $('#timer').classList.toggle('low', listening && left <= 10);
+    if (listening && left <= 0) submit({ capped: !!$('#answer').value.trim(), silence: !$('#answer').value.trim() });
+    if (el > viva.slotSeconds + 5 && !busy) finish('time_limit');
+    return;
+  }
   const left = viva.slotSeconds - el;
   $('#timer').textContent = fmt(left);
   $('#timer').classList.toggle('low', left < 120);
@@ -296,7 +359,7 @@ function startRecognition() {
     $('#heard').textContent = interim ? `Hearing: ${interim}` : '';
     speechStart ||= Date.now(); lastSpeech = Date.now();
     clearTimeout(endTimer);
-    if (!typed) endTimer = setTimeout(() => { if (listening && !$('#heard').textContent) submit({}); }, ENDPOINT_MS);
+    if (!typed) endTimer = setTimeout(() => { if (listening && !$('#heard').textContent) submit({}); }, viva?.format === 'timed' ? 4000 : ENDPOINT_MS);
   };
   recog.onend = () => { recog = null; if (listening && micOn) startRecognition(); };   // Chrome stops on pauses
   recog.onerror = e => { if (e.error === 'not-allowed') { typeOnly(); msg('#viva-msg', 'Speech recognition is blocked in this browser. Please type your answers.'); } };

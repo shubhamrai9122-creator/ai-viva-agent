@@ -8,8 +8,8 @@ import fs from 'node:fs';
 export function createViva(code = 'SIM-' + Math.floor(Math.random() * 1e6), phases = DEFAULT_PHASES) {
   const id = uid('v_');
   db.prepare('INSERT INTO vivas (id, code, subject, topics, difficulty, phases, rubric, created_at) VALUES (?,?,?,?,?,?,?,?)')
-    .run(id, code, 'Database Management Systems', JSON.stringify(['normalization', 'indexing', 'transactions', 'sql']), 'medium', JSON.stringify(phases), JSON.stringify(DEFAULT_RUBRIC), nowIso());
-  insertQuestions(id, JSON.parse(fs.readFileSync(new URL('../data/samples/dbms-question-bank.json', import.meta.url))), 'sample', true);
+    .run(id, code, 'Data Structures', JSON.stringify(['arrays and linked lists', 'stacks', 'queues', 'hashing', 'trees', 'heaps', 'graphs', 'sorting']), 'medium', JSON.stringify(phases), JSON.stringify(DEFAULT_RUBRIC), nowIso());
+  insertQuestions(id, JSON.parse(fs.readFileSync(new URL('../data/samples/ds-question-bank.json', import.meta.url))), 'sample', true);
   return getViva(id);
 }
 

@@ -31,12 +31,22 @@ async function boot() {
   const d = await api('/api/faculty/defaults');
   phaseDefaults = d.phases;
   $('#v-phases').innerHTML = d.phases.map(p => `<div style="flex:1 1 110px"><label style="margin-top:0" class="small">${esc(p.label)}</label><input type="number" min="0" step="10" data-k="${p.key}" value="${p.seconds}"></div>`).join('');
-  for (const i of $$('#v-phases input')) i.oninput = phaseTotal;
+  for (const i of [...$$('#v-phases input'), $('#v-qcount'), $('#v-qsecs')]) i.oninput = phaseTotal;
+  for (const r of $$('input[name=fmt]')) r.onchange = () => {
+    const timed = fmtValue() === 'timed';
+    $('#fmt-timed').classList.toggle('hidden', !timed); $('#fmt-phased').classList.toggle('hidden', timed); phaseTotal();
+  };
   phaseTotal();
   $('#export').href = `/api/faculty/export.csv?key=${encodeURIComponent(key)}`;
   loadResults(); setInterval(loadResults, 10000);
 }
+const fmtValue = () => $('input[name=fmt]:checked').value;
 function phaseTotal() {
+  if (fmtValue() === 'timed') {
+    const n = Number($('#v-qcount').value) || 0, sec = Number($('#v-qsecs').value) || 0;
+    $('#v-total').innerHTML = `${n} questions × ${fmt(sec)} = <b>${fmt(n * sec)}</b> of answer time${n * sec > 870 ? ' <span class="chip bad">too long</span>' : ''}`;
+    return;
+  }
   const total = $$('#v-phases input').reduce((a, i) => a + (Number(i.value) || 0), 0);
   $('#v-total').innerHTML = `Interview length: <b>${fmt(total)}</b> of 14:30${total > 870 ? ' <span class="chip bad">too long</span>' : ''}`;
 }
@@ -99,11 +109,13 @@ setupDrop('#q-drop', '#q-file', async f => {
 });
 
 // ---------- vivas ----------
+// Recommended bank size: 3x the questions for a quick viva (room to adapt), 20 for a full one.
+const smallBank = v => { const want = v.format === 'timed' ? v.questionCount * 3 : 20; return v.approved_questions < want ? want : 0; };
 async function loadVivas() {
   const vs = await api('/api/faculty/vivas');
   $('#vivas').innerHTML = vs.length ? `<table><thead><tr><th>Code</th><th>Subject</th><th>Questions</th><th></th></tr></thead><tbody>${vs.map(v => `
-    <tr><td><b>${esc(v.code)}</b><div class="small muted">${v.sessions} taken</div></td><td>${esc(v.subject)}<div class="small muted">${esc(v.topics.join(', '))}</div></td>
-    <td>${v.approved_questions} approved${v.pending_questions ? `<div><span class="chip warn">${v.pending_questions} drafts</span></div>` : ''}${v.approved_questions < 20 ? '<div><span class="chip plain" title="With fewer than 20 approved questions, a student who skips many can run out before the time is up. The examiner then asks logged follow-on questions and second chances.">Aim for 20+</span></div>' : ''}</td>
+    <tr><td style="white-space:nowrap"><b>${esc(v.code)}</b><div class="small muted">${v.format === 'timed' ? `${v.questionCount} × ${v.secondsPerQuestion % 60 ? v.secondsPerQuestion + ' s' : v.secondsPerQuestion / 60 + ' min'}` : 'Full 15 min'}</div><div class="small muted">${v.sessions} taken</div></td><td>${esc(v.subject)}<div class="small muted">${esc(v.topics.join(', '))}</div></td>
+    <td>${v.approved_questions} approved${v.pending_questions ? `<div><span class="chip warn">${v.pending_questions} drafts</span></div>` : ''}${smallBank(v) ? `<div><span class="chip plain" title="A bigger bank lets the examiner pick easier or harder questions for each student, and stops students running out of questions.">Aim for ${smallBank(v)}+</span></div>` : ''}</td>
     <td><button class="secondary" data-q="${v.id}" data-name="${esc(v.code)}">Questions</button></td></tr>`).join('')}</tbody></table>`
     : '<p class="muted">No vivas yet. Create one on the left.</p>';
   for (const b of $$('[data-q]')) b.onclick = () => openQuestions(b.dataset.q, b.dataset.name);
@@ -116,6 +128,7 @@ $('#v-create').onclick = async () => {
       subject: $('#v-subject').value.trim(), code: $('#v-code').value.trim() || undefined, difficulty: $('#v-diff').value,
       topics: $('#v-topics').value.split(',').map(s => s.trim()).filter(Boolean),
       phases: $$('#v-phases input').map(i => ({ key: i.dataset.k, seconds: Number(i.value) })),
+      format: fmtValue(), questionCount: Number($('#v-qcount').value), secondsPerQuestion: Number($('#v-qsecs').value),
     };
     if (!body.subject) return msg('#v-msg', 'Enter a subject.');
     const r = await api('/api/faculty/vivas', { method: 'POST', body: JSON.stringify(body) });

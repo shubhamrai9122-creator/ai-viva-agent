@@ -55,11 +55,11 @@ const viva = () => vivaObj ||= (() => { const v = sim.createViva('LLM-TEST'); ba
 
 test('interviewer turn: request shape and a deeper follow-up', async () => {
   viva();
-  replies.push(message({ assessment: 'strong', action: 'deeper', say: 'Why would you stop at third normal form rather than BCNF?' }));
-  const r = await turn(fundamentalsState(), 'Normalization removes redundancy using functional dependencies, up to third normal form.');
+  replies.push(message({ assessment: 'strong', action: 'deeper', say: 'Why is indexing an array O(1) but finding the k-th node of a linked list O(n)?' }));
+  const r = await turn(fundamentalsState(), 'Arrays use contiguous memory with constant-time indexing; linked lists use nodes and pointers.');
   assert.equal(r.mode, 'llm');
   assert.equal(r.action, 'deeper');
-  assert.equal(r.say, 'Why would you stop at third normal form rather than BCNF?');
+  assert.equal(r.say, 'Why is indexing an array O(1) but finding the k-th node of a linked list O(n)?');
   assert.equal(r.questionId, bank[0].id, 'follow-up stays on the same bank question');
 
   const { url, headers, body } = requests[0];
@@ -71,7 +71,7 @@ test('interviewer turn: request shape and a deeper follow-up', async () => {
   assert.deepEqual(body.thinking, { type: 'disabled' });
   assert.equal('temperature' in body, false);
   const user = body.messages[0].content;
-  assert.match(user, /<student_answer>\nNormalization removes redundancy/);
+  assert.match(user, /<student_answer>\nArrays use contiguous memory/);
   assert.match(user, /allowed_actions: next, deeper, hint, redirect/);
   assert.match(user, /Examiner-only reference points \(never reveal\)/);
   assert.match(body.system, /Never reveal, confirm, or teach the correct answer/);
@@ -79,7 +79,7 @@ test('interviewer turn: request shape and a deeper follow-up', async () => {
 
 test('interviewer: an action outside the follow-up budget is overridden to move on', async () => {
   replies.push(message({ assessment: 'strong', action: 'deeper', say: 'Tell me more about that.' }));
-  const r = await turn(fundamentalsState(1), 'Normalization splits tables to avoid update anomalies and redundancy.');
+  const r = await turn(fundamentalsState(1), 'A linked list grows node by node, an array needs resizing.');
   assert.match(requests[0].body.messages[0].content, /allowed_actions: next\n/);
   assert.equal(r.action, 'next');
   assert.notEqual(r.questionId, bank[0].id);
@@ -90,8 +90,8 @@ test('interviewer: an action outside the follow-up budget is overridden to move 
 test('interviewer: rate limit is retried, then a server failure falls back to rules', async () => {
   const before = { ...llm.stats };
   replies.push({ status: 429, headers: { 'retry-after': '0' }, body: { type: 'error', error: { type: 'rate_limit_error', message: 'slow down' } } });
-  replies.push(message({ assessment: 'partial', action: 'hint', say: 'Think about what happens when the same fact is stored twice.' }));
-  let r = await turn(fundamentalsState(), 'It makes tables smaller, normalization.');
+  replies.push(message({ assessment: 'partial', action: 'hint', say: 'Think about where each element lives in memory.' }));
+  let r = await turn(fundamentalsState(), 'Arrays are faster, I think.');
   assert.equal(r.mode, 'llm');
   assert.equal(r.action, 'hint');
   assert.equal(llm.stats.rateLimited, before.rateLimited + 1);
@@ -99,7 +99,7 @@ test('interviewer: rate limit is retried, then a server failure falls back to ru
 
   replies.push({ status: 500, body: { type: 'error', error: { type: 'api_error', message: 'boom' } } });
   replies.push({ status: 529, body: { type: 'error', error: { type: 'overloaded_error', message: 'busy' } } });
-  r = await turn(fundamentalsState(), 'Normalization reduces redundancy in tables.');
+  r = await turn(fundamentalsState(), 'A linked list uses pointers between nodes.');
   assert.equal(r.mode, 'fallback', 'viva keeps going without the LLM');
   assert.ok(r.say.length > 0);
   assert.equal(requests.length, 4);
@@ -122,12 +122,12 @@ test('scorer: request shape, weighted total, and evidence validation', async () 
   const sid = db.uid('s_');
   db.db.prepare(`INSERT INTO sessions (id, viva_id, student_id, student_name, started_at, status, state, score_status)
     VALUES (?,?,?,?,?,'ended','{}','queued')`).run(sid, v.id, 'S-LLM', 'Asha', Date.now());
-  const lines = [['ai', 'Tell me about a project you built.'], ['student', 'I built a library system on PostgreSQL with indexes on member ID and transactions for issuing books.'],
-    ['ai', bank[0].text], ['student', 'Normalization removes redundancy using functional dependencies.']];
+  const lines = [['ai', 'Tell me about a project you built.'], ['student', 'I built a bus route planner using a graph, breadth-first search and a hash map of stop names.'],
+    ['ai', bank[0].text], ['student', 'Arrays are contiguous with O(1) indexing; linked lists use pointers.']];
   lines.forEach(([role, text], i) => db.addTurn({ session_id: sid, role, text, t_start: i * 20, phase: i < 2 ? 'warmup' : 'fundamentals' }));
   replies.push(message({
     dimensions: [
-      { key: 'conceptual', score: 4, reason: 'Correct definition of normalization.', evidence: ['L4'] },
+      { key: 'conceptual', score: 4, reason: 'Correct comparison of arrays and linked lists.', evidence: ['L4'] },
       { key: 'depth', score: 3, reason: 'Limited follow-up evidence.', evidence: ['L4', 'L999'] },
       { key: 'problem_solving', score: 3, reason: 'Some reasoning shown.', evidence: [] },
       { key: 'practical', score: 4, reason: 'Concrete project details.', evidence: ['L2'] },
@@ -147,7 +147,7 @@ test('scorer: request shape, weighted total, and evidence validation', async () 
   assert.equal(body.output_config.effort, 'high');
   assert.equal('temperature' in body, false);
   assert.match(body.system, /conceptual \(Conceptual understanding, weight 30%\)/);
-  assert.match(body.messages[0].content, /L4 \[01:00\] STUDENT: Normalization removes redundancy/);
+  assert.match(body.messages[0].content, /L4 \[01:00\] STUDENT: Arrays are contiguous/);
 
   assert.equal(result.mode, 'llm');
   assert.equal(result.total, 73);   // 4/5*30 + 3/5*25 + 3/5*20 + 4/5*15 + 5/5*10
@@ -166,7 +166,7 @@ test('uploads: Claude reads PDFs as document blocks and images as image blocks',
     { text: 'What is a B+ tree?', topic: 'indexing', kind: 'concept', difficulty: 'medium', expected: 'Balanced tree; leaves linked; range scans.' }] };
   replies.push(message(extracted), message(extracted));
   const pdf = await qb.importDocument({ buf: makePdf(['1. What is a B+ tree?']), viva: v });
-  const png = await qb.importDocument({ buf: fs.readFileSync(new URL('../data/samples/dbms-question-paper.png', import.meta.url)), viva: v });
+  const png = await qb.importDocument({ buf: fs.readFileSync(new URL('../data/samples/ds-question-paper.png', import.meta.url)), viva: v });
   assert.equal(pdf.method, 'claude-question_paper');
   assert.equal(pdf.questions[0].text, 'What is a B+ tree?');
   const [doc, img] = requests.map(r => r.body.messages[0].content);
@@ -183,7 +183,7 @@ test('uploads: if Claude fails, the PDF is read locally instead', async () => {
   const qb = await import('../src/questionbank.js');
   const { makePdf } = await import('../scripts/make-sample-pdf.js');
   for (let i = 0; i < 3; i++) replies.push({ status: 500, body: { type: 'error', error: { type: 'api_error', message: 'down' } } });
-  const r = await qb.importDocument({ buf: makePdf(['1. What is normalization?', '2. Why do we use indexes?']), viva: viva() });
+  const r = await qb.importDocument({ buf: makePdf(['1. What is a stack?', '2. Why do we use hash tables?']), viva: viva() });
   assert.equal(r.method, 'pdf-text');
   assert.equal(r.questions.length, 2);
 });

@@ -17,6 +17,7 @@ services:
       MAIL_FROM: ${MAIL_FROM:-}
       ALLOWED_EMAIL_DOMAINS: ${ALLOWED_EMAIL_DOMAINS:-}
       AUTH_SECRET: ${AUTH_SECRET:-}
+      VALIDATEEASY_API_KEY: ${VALIDATEEASY_API_KEY:-}
     volumes:
       - viva-data:/data
     restart: unless-stopped

@@ -127,6 +127,19 @@ const VERB = /^(explain|describe|define|compare|discuss|differentiate|distinguis
 const NUM = /^(?:q(?:uestion)?\s*\.?\s*)?\(?(?:\d{1,3}|[a-h]|[ivx]{1,4})[).:]\s+|^[•▪●\-*]\s+/i;
 const MARKS = /\s*[([]?\s*\d{1,2}\s*(?:marks?|m)\s*[)\]]?\s*$|\s*[([]\s*\d{1,2}\s*[)\]]\s*$/i;
 
+// The viva topic a question mentions first ("heap" -> heaps, "hash table" -> hashing).
+export function topicFor(text, topics) {
+  const words = String(text).toLowerCase().match(/[a-z]+/g) || [];
+  let best = null;
+  for (const t of topics) {
+    const stems = (t.toLowerCase().match(/[a-z]+/g) || []).filter(w => w.length >= 4).map(w => w.slice(0, 4));
+    let hits = 0, first = Infinity;
+    words.forEach((w, i) => { if (stems.some(st => w.startsWith(st))) { hits++; first = Math.min(first, i); } });
+    if (hits && (!best || first < best.first || (first === best.first && hits > best.hits))) best = { t, hits, first };
+  }
+  return best ? best.t : 'general';
+}
+
 /** Pick question-like lines out of extracted text. */
 export function questionsFromText(text, topics = [], difficulty = 'medium') {
   const lines = String(text || '').split(/\r?\n/).map(l => l.replace(/\s+/g, ' ').trim()).filter(Boolean);
@@ -156,8 +169,7 @@ export function questionsFromText(text, topics = [], difficulty = 'medium') {
     const kind = /\b(scenario|suppose|imagine|design|debug\w*|troubleshoot\w*|case study|given (?:a|the)|consider a|how would you)\b/i.test(b) ? 'applied'
       : /^(what is|what are|define|explain|describe|state|list|name|mention)\b/i.test(b) ? 'concept'
       : /\b(why|trade-?offs?|compar\w*|differen\w*|advantages?|disadvantages?|justify|evaluate|when would)\b/i.test(b) ? 'depth' : 'concept';
-    const lower = b.toLowerCase();
-    const topic = topics.find(t => lower.includes(t.toLowerCase().slice(0, Math.min(5, t.length)))) || 'general';
+    const topic = topicFor(b, topics);
     out.push({ text: /[?.]$/.test(b) ? b : `${b}.`, topic, kind, difficulty, expected: '' });
   }
   return out;

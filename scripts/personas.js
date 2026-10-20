@@ -9,13 +9,14 @@ const { scoreSession } = await import('../src/scorer.js');
 const { getSession, getViva } = await import('../src/db.js');
 const { MOCK, env } = await import('../src/config.js');
 
-const STRONG_FOLLOW = 'The main trade-off is between read performance and write cost. For example, at scale I would measure with EXPLAIN and load tests first, because adding structure helps reads but every insert and update has to maintain it, and under high concurrency that becomes the bottleneck. An edge case is when the data is skewed so the optimizer picks a bad plan.';
+// A follow-up answer that stays on the question's topic: trade-offs, scale and an edge case.
+const strongFollow = q => `With ${q.topic}, the main trade-off is time against memory. ${(q.expected || '').split('.')[0]}. At scale I would measure the complexity on real input sizes first, and an edge case is when the input is already sorted or very skewed, which can push it towards the worst case.`;
 const personas = {
   strong: ({ question, n }) => question?.kind === 'opener'
-    ? 'I built a library management system with a team of three. I designed the PostgreSQL schema, normalised it to third normal form, added indexes on book ID and member ID for the issue table, and wrote the REST API in Node. We used transactions so issuing a book and updating stock happen atomically.'
-    : question?.kind === 'wrapup' ? 'Just that I enjoyed the transactions question; I would like to learn more about MVCC.'
-    : n % 2 === 0 && question?.expected ? `${question.expected} To explain it in my own words, this matters because it keeps the data correct and the queries efficient, and in my project I saw this directly when we tuned the issue table.` : STRONG_FOLLOW,
-  weak: ({ question }) => question?.kind === 'opener' ? 'I made a website for college fest. It had a database.'
+    ? 'I built a bus route planner for our college. I stored stops as a graph with an adjacency list, used breadth-first search with a queue to find the route with the fewest stops, and a hash map from stop names to ids so lookups are constant time on average.'
+    : question?.kind === 'wrapup' ? 'Just that I enjoyed the graph question; I would like to learn Dijkstra with a heap properly.'
+    : n % 2 === 0 && question?.expected ? `${question.expected} To explain it in my own words, the choice matters because it decides the time and memory cost, and in my project I saw this directly with the route search.` : strongFollow(question || {}),
+  weak: ({ question }) => question?.kind === 'opener' ? 'I made a website for college fest. It had a list of events.'
     : question?.kind === 'wrapup' ? 'No, nothing.'
     : question?.expected ? `I think it is something about ${question.expected.split(/[;,.]/)[0].split(' ').slice(0, 4).join(' ').toLowerCase()}, I am not fully sure.` : 'Maybe it makes it faster?',
   dontknow: ({ question, n }) => question?.kind === 'opener' ? 'Sir mera project ek todo app tha, usme maine frontend banaya tha React mein.'

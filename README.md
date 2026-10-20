@@ -1,6 +1,6 @@
 # AI Viva Agent
 
-A voice AI examiner that runs a 15-minute technical viva. It asks adaptive follow-up questions, scores the student against a weighted rubric with every score linked to transcript evidence, and keeps the audio, transcript and scoring record so faculty can audit any mark.
+A voice AI examiner that runs a short technical viva (by default 5 questions, one minute each; a full 15-minute format is also available). It adapts its questions to each answer, scores the student against a weighted rubric with every score linked to transcript evidence, and keeps the audio, transcript and scoring record so faculty can audit any mark.
 
 Built for the MSOT *AI Viva Challenge* (Problem 1).
 
@@ -24,7 +24,7 @@ export ANTHROPIC_API_KEY=sk-ant-...   # or put it in .env (see .env.example); np
 npm start
 ```
 
-A demo viva with code **`DBMS-DEMO`** (11 DBMS questions) is seeded on first start.
+A demo viva with code **`DS-DEMO`** (Data Structures: 5 questions, 1 minute each, picked from a 16-question bank) is seeded on first start.
 
 | Who | URL | Notes |
 |---|---|---|
@@ -40,7 +40,7 @@ A demo viva with code **`DBMS-DEMO`** (11 DBMS questions) is seeded on first sta
    - paste a syllabus and let the AI draft questions.
 
    Questions from a file or the AI start as *drafts* until faculty approve them.
-2. **Student sign-in and consent.** Students sign in with their email and a 6-digit one-time code (no passwords). Codes are sent by SMTP, or printed in the server log until email is set up (see `.env.example`). `ALLOWED_EMAIL_DOMAINS` can restrict sign-in to the institute's domain. Each viva is tied to the verified email: one attempt per email, and a student ID can't be reused by another email. Students then enter the viva code and their ID, read the rules, choose the examiner's voice, test their mic, and tick a recording-consent box. The server refuses to start a viva without consent.
+2. **Student sign-in and consent.** Students sign in with their email and a 6-digit one-time code (no passwords). Codes are sent by SMTP, or printed in the server log until email is set up (see `.env.example`). `ALLOWED_EMAIL_DOMAINS` can restrict sign-in to the institute's domain. Each viva is tied to the verified email: one attempt per email, and a student ID can't be reused by another email. With `VALIDATEEASY_API_KEY` set, each address is first checked with [ValidateEasy](https://validateeasy.com), so disposable, mistyped or dead-domain addresses are refused (if the service is down, sign-in still works). The sign-in email puts the code alone on its own line so it can be copied in one tap, and the sign-in page has a **Paste code** button. Students then enter the viva code and their ID, read the rules, choose the examiner's voice, optionally check their microphone and speech-to-text, and tick a recording-consent box. The server refuses to start a viva without consent.
 3. **Voice interview.** The browser speaks each question (TTS) and transcribes the answer (STT) with the Web Speech API.
    - **Examiner voice:** a female voice by default (Samantha, Veena, Heera or similar, depending on the device), and students can pick another.
    - **Read-only mode:** students can turn the voice off to read questions instead, or stop it mid-sentence.
@@ -48,7 +48,11 @@ A demo viva with code **`DBMS-DEMO`** (11 DBMS questions) is seeded on first sta
 
    The server picks the next turn using Claude Haiku 5.5 with a 6 s timeout, falling back to a rule-based turn if the call fails.
 4. **Adaptive follow-ups.** A deterministic controller enforces this policy: a strong answer gets a follow-up that goes deeper; a partial answer gets one hint and then the viva moves on; "I don't know" moves on immediately; off-topic answers and prompt injection get one redirect. Follow-ups per question are capped (1 in Fundamentals, 3 in Depth and Applied). The examiner never reveals answers.
-5. **15-minute hard limit.** The timer and phase bar are always visible. Answers are capped at 90 s, and a wrap-up prompt and closing line run on time. The server also closes any viva that runs past its slot.
+5. **Time limits.** Faculty choose the format per viva:
+   - **Quick (default):** a set number of questions (default 5), each with its own answer time (default 60 s). The clock for each question starts after it has been read out and is shown large on screen. When it runs out, the answer is sent as it is. After a strong answer the next question is harder, after a weak one it is easier, and the last question is always an applied problem.
+   - **Full:** the 15-minute structure with five phases and follow-up questions. Answers are capped at 90 s, and a wrap-up prompt and closing line run on time.
+
+   The server also closes any viva that runs past its slot.
 6. **Marks and feedback.** After the viva, Claude Opus 5.5 scores the full transcript. Each of the 5 rubric dimensions gets a 0–5 score, a one-line reason and the transcript lines that support it. The app computes the weighted total out of 100 and 3–5 feedback lines, each with line references.
 7. **Persistence.** The app stores:
    - Audio, uploaded in 5 s chunks so a crash loses at most 5 s. Each reconnect starts a new segment.

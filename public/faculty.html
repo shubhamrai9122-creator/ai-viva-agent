@@ -32,12 +32,23 @@
       <div class="grid2">
         <div class="card">
           <h2>Create a viva</h2>
-          <div class="row"><div><label for="v-subject">Subject</label><input id="v-subject" placeholder="Database Management Systems"></div>
+          <div class="row"><div><label for="v-subject">Subject</label><input id="v-subject" placeholder="Data Structures"></div>
             <div style="flex:0 1 160px"><label for="v-code">Code <span class="hint">(optional)</span></label><input id="v-code" placeholder="Auto"></div></div>
-          <div class="row"><div><label for="v-topics">Topics <span class="hint">(comma-separated)</span></label><input id="v-topics" placeholder="normalization, indexing, transactions"></div>
+          <div class="row"><div><label for="v-topics">Topics <span class="hint">(comma-separated)</span></label><input id="v-topics" placeholder="arrays, stacks, trees, graphs, hashing"></div>
             <div style="flex:0 1 160px"><label for="v-diff">Difficulty</label><select id="v-diff"><option>easy</option><option selected>medium</option><option>hard</option></select></div></div>
-          <label>Phase timings <span class="hint">(seconds; at most 14:30 in total, leaving 30 s to hand over for marking)</span></label>
-          <div class="row" id="v-phases"></div>
+          <label>Format</label>
+          <div class="row">
+            <label class="check fmt"><input type="radio" name="fmt" value="timed" checked><span><b>Quick viva</b><br><span class="small muted">A set number of questions, each with its own answer time.</span></span></label>
+            <label class="check fmt"><input type="radio" name="fmt" value="phased"><span><b>Full viva</b><br><span class="small muted">15 minutes: warm-up, fundamentals, depth, applied problem, wrap-up.</span></span></label>
+          </div>
+          <div id="fmt-timed" class="row">
+            <div><label for="v-qcount">Number of questions</label><input type="number" id="v-qcount" min="1" max="20" value="5"></div>
+            <div><label for="v-qsecs">Seconds per question</label><input type="number" id="v-qsecs" min="20" max="300" step="10" value="60"></div>
+          </div>
+          <div id="fmt-phased" class="hidden">
+            <label>Phase timings <span class="hint">(seconds; at most 14:30 in total)</span></label>
+            <div class="row" id="v-phases"></div>
+          </div>
           <p class="small muted" id="v-total" style="margin-top:8px"></p>
           <label>Questions <span class="hint">(optional, you can add them later)</span></label>
           <label class="drop" id="v-drop"><input type="file" id="v-file" accept=".csv,.json,.pdf,.png,.jpg,.jpeg,text/csv,application/json,application/pdf,image/png,image/jpeg">

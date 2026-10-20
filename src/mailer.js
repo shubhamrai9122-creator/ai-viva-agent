@@ -22,12 +22,17 @@ const getTransport = () => transport ||= nodemailer.createTransport({
 export const outbox = [];
 
 export async function sendLoginCode(email, code) {
+  // Code first in the subject and alone on its own line: Gmail and phones then offer a
+  // one-tap "Copy code" button, and tapping the code in the email selects all of it.
   const subject = `${code} is your AI Viva sign-in code`;
-  const text = `Your AI Viva sign-in code is ${code}.\n\nIt expires in 10 minutes. If you didn't ask for it, you can ignore this email.`;
-  const html = `<div style="font-family:system-ui,sans-serif;color:#2b1d14">
-    <p>Your AI Viva sign-in code is</p>
-    <p style="font-size:28px;font-weight:700;letter-spacing:6px;color:#6b4226">${code}</p>
-    <p style="color:#7a6656">It expires in 10 minutes. If you didn't ask for it, you can ignore this email.</p></div>`;
+  const text = `Your AI Viva sign-in code:\n\n${code}\n\nCopy it and paste it on the sign-in page. It expires in 10 minutes.\nIf you didn't ask for it, you can ignore this email.`;
+  const html = `<div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#2b1d14;max-width:440px;margin:0 auto;padding:24px">
+    <p style="margin:0 0 6px;font-size:15px">Your AI Viva sign-in code</p>
+    <div style="margin:12px 0 16px;padding:16px;border:1px solid #ece2d7;border-radius:12px;background:#fbf7f2;text-align:center">
+      <span style="font:700 34px/1 ui-monospace,Menlo,Consolas,monospace;letter-spacing:8px;color:#5c3a21;-webkit-user-select:all;user-select:all">${code}</span>
+    </div>
+    <p style="margin:0 0 8px;font-size:14px">Tap or double-click the code to select it, copy it, and paste it on the sign-in page.</p>
+    <p style="margin:0;font-size:13px;color:#7a6656">It expires in 10 minutes. If you didn't ask for it, you can ignore this email.</p></div>`;
   if (EMAIL_MODE === 'console') {
     outbox.push({ to: email, code, at: Date.now() });
     if (outbox.length > 100) outbox.shift();

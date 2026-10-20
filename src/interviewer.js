@@ -25,7 +25,7 @@ const MANIPULATION = /(full marks|give me (a )?(10|100|full|good|high)|ignore (a
 const STOP = new Set(('the a an and or of to in on for is are was were be been it its this that these with as at by from what why how when which ' +
   'who your you i we they there their can do does did not but if so than then about into explain mean means difference between would could ' +
   'should will just also some any one two sir mam yes okay like think').split(' '));
-// Crude stems (first 5 letters) so "normalise" / "normalization" / "normalized" match.
+// Crude stems (first 5 letters) so "sorting" / "sorted" and "linked" / "linking" match.
 const stems = s => new Set(((s || '').toLowerCase().match(/[a-z][a-z0-9+]{2,}/g) || []).filter(w => !STOP.has(w)).map(w => w.slice(0, 5)));
 
 /** Rule-based answer assessment, used in mock mode and when the LLM is unavailable. */
@@ -304,3 +304,92 @@ export async function nextTurn({ viva, session, bank, history, answer, elapsed }
   if (changed) intro = typeof PHASE_INTRO[phaseKey] === 'function' ? PHASE_INTRO[phaseKey](nextQ.topic) : (PHASE_INTRO[phaseKey] || '');
   return { say: [ack, intro, nextQ.text].filter(Boolean).join(' '), action: 'next', assessment, phaseKey, questionId: nextQ.id, done: false, mode, state: st };
 }
+
+// ---------------------------------------------------------------------------
+// Quick format: N questions (default 5), each with its own answer time (default 60 s).
+// The examiner asks exactly N questions and adapts which one comes next: after a strong
+// answer, a harder "depth" question; after a weak one, an easier concept question; the
+// last question is always an applied problem, so everyone is tested on problem solving.
+// The answer clock runs in the browser from the moment the question has been read out,
+// so a slower voice never eats into the student's time.
+// ---------------------------------------------------------------------------
+export const isTimed = viva => viva.format === 'timed';
+const KIND_PHASE = { concept: 'fundamentals', depth: 'depth', applied: 'applied' };
+
+/** Hard cap on a quick viva's wall-clock length, including reading each question aloud. */
+export function vivaSlotSeconds(viva) {
+  if (!isTimed(viva)) return slotSeconds(viva.phases);
+  return 40 + viva.questionCount * (viva.secondsPerQuestion + 30) + 30;
+}
+
+function pickTimed(bank, st, { last, after }) {
+  const unasked = bank.filter(q => !st.asked.includes(q.id));
+  if (!unasked.length) return null;
+  const used = new Set(bank.filter(q => st.asked.includes(q.id)).map(q => q.topic));
+  const want = last ? ['applied', 'depth', 'concept'] : after === 'strong' ? ['depth', 'concept', 'applied'] : ['concept', 'depth', 'applied'];
+  const rank = { easy: 0, medium: 1, hard: 2 };
+  const byEase = arr => (after === 'strong' ? arr : [...arr].sort((a, b) => (rank[a.difficulty] ?? 1) - (rank[b.difficulty] ?? 1)));
+  // Keep applied problems for the last question when the bank has enough of the other kinds.
+  const pool = last ? unasked : unasked.filter(q => q.kind !== 'applied').length ? unasked.filter(q => q.kind !== 'applied') : unasked;
+  for (const kind of want) {
+    const ofKind = byEase(pool.filter(q => q.kind === kind));
+    const q = ofKind.find(x => !used.has(x.topic)) || ofKind[0];
+    if (q) return q;
+  }
+  return pool[0] || unasked[0];
+}
+
+const durationWords = s => (s === 60 ? 'one minute' : s % 60 === 0 ? `${s / 60} minutes` : `${s} seconds`);
+
+/** Builds the first examiner line and state for a quick viva. */
+export function startTimed(viva, session, bank) {
+  const st = { mode: 'timed', qNum: 1, asked: [], outcomes: {}, topicStrength: {}, closed: false, n: 0 };
+  const q = pickTimed(bank, st, { last: viva.questionCount === 1, after: null }) || variantQuestion('fundamentals', bank, st, viva.topics);
+  st.q = { id: q.id, text: q.text, topic: q.topic, kind: q.kind, expected: q.expected, variantOf: q.variantOf };
+  st.asked.push(q.id);
+  const say = `Hello ${session.student_name || 'there'}. Welcome to your ${viva.subject} viva. I'm the AI examiner. ` +
+    `There are ${viva.questionCount} questions, and you have ${durationWords(viva.secondsPerQuestion)} to answer each one. ` +
+    `I can't tell you answers or marks, and it's fine to say you don't know. Question 1. ${q.text}`;
+  return { say, state: st, questionId: q.id, phaseKey: KIND_PHASE[q.kind] || 'fundamentals' };
+}
+
+export async function nextTimedTurn({ viva, session, bank, history, answer, elapsed }) {
+  const st = structuredClone(session.state);
+  const N = viva.questionCount;
+  st.n = (st.n || 0) + 1;
+  const close = (prefix, assessment = null) => {
+    st.closed = true;
+    return { say: `${prefix ? prefix + ' ' : ''}${CLOSING_TEXT}`, action: 'close', assessment, phaseKey: 'closed', questionId: null, done: true, mode: 'rule', state: st, questionNumber: st.qNum };
+  };
+  if (st.closed) return close('');
+
+  let assessment, say = null, mode;
+  const trimmed = (answer || '').trim();
+  if (!trimmed || (IDK.test(trimmed) && trimmed.split(/\s+/).length < 8)) { assessment = 'none'; mode = 'rule'; say = trimmed ? "That's okay." : "Time's up for that one."; }
+  else if (MOCK) { assessment = heuristicAssess(trimmed, st.q); mode = 'mock'; }
+  else {
+    try {
+      const d = await llmDecide({ viva, phase: { label: `Question ${st.qNum} of ${N}`, goal: 'Assess the answer. The system moves on to the next question itself.' },
+        st: { ...st, q: { ...st.q, followups: 0 } }, allowed: ['next'], history, answer: trimmed, remaining: Math.max(0, vivaSlotSeconds(viva) - elapsed) });
+      assessment = d.assessment; say = String(d.say || '').slice(0, 200); mode = 'llm';
+    } catch (err) {
+      assessment = heuristicAssess(trimmed, st.q); mode = 'fallback';
+      console.warn('[interviewer] LLM failed, using fallback:', err?.status || err?.message);
+    }
+  }
+  const ack = say || pick(TEMPLATES.ack, st.n);
+  st.topicStrength[st.q.topic] = (st.topicStrength[st.q.topic] || 0) + ({ strong: 2, partial: 1 }[assessment] || 0);
+  if (bank.some(q => q.id === st.q.id)) st.outcomes[st.q.id] = assessment;
+
+  if (st.qNum >= N) return close(ack, assessment);
+  if (elapsed >= vivaSlotSeconds(viva)) return close("We've reached the time limit.", assessment);
+  const last = st.qNum + 1 === N;
+  const next = pickTimed(bank, st, { last, after: assessment }) || variantQuestion(last ? 'applied' : 'depth', bank, st, viva.topics);
+  if (!next) { st.bankExhaustedAt ??= Math.round(elapsed); return close(ack, assessment); }
+  st.qNum++;
+  st.q = { id: next.id, text: next.text, topic: next.topic, kind: next.kind, expected: next.expected, variantOf: next.variantOf };
+  st.asked.push(next.id);
+  return { say: `${ack} Question ${st.qNum}${last ? ', the last one' : ''}. ${next.text}`, action: 'next', assessment,
+    phaseKey: KIND_PHASE[next.kind] || 'fundamentals', questionId: next.id, done: false, mode, state: st, questionNumber: st.qNum };
+}
+export const phaseOfQuestion = q => KIND_PHASE[q?.kind] || 'fundamentals';

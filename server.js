@@ -4,8 +4,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { db, uid, nowIso, getViva, listVivas, getQuestions, insertQuestions, getSession, saveState, getTurns, addTurn,
   addEvent, getEvents, addAudit, getAudit, AUDIO_DIR } from './src/db.js';
-import { DEFAULT_PHASES, DEFAULT_RUBRIC, SLOT_SECONDS, MAX_ANSWER_SECONDS, env, MOCK } from './src/config.js';
-import { greeting, initialState, nextTurn, totalSeconds, slotSeconds, timePhaseIndex, INTERVIEWER_PROMPT_VERSION } from './src/interviewer.js';
+import { DEFAULT_PHASES, DEFAULT_RUBRIC, QUICK_DEFAULTS, QUICK_RUBRIC, SLOT_SECONDS, MAX_ANSWER_SECONDS, env, MOCK } from './src/config.js';
+import { greeting, initialState, nextTurn, totalSeconds, timePhaseIndex, INTERVIEWER_PROMPT_VERSION,
+  isTimed, startTimed, nextTimedTurn, vivaSlotSeconds, phaseOfQuestion } from './src/interviewer.js';
 import { enqueueScoring, resumeQueue, queueStats } from './src/queue.js';
 import { parseBank, generateBank, importDocument, sniffType } from './src/questionbank.js';
 import { requestCode, verifyCode, readToken, issueToken, normaliseEmail, checkEmail } from './src/auth.js';
@@ -45,15 +46,25 @@ app.get('/api/faculty/defaults', faculty, (req, res) => res.json({ phases: DEFAU
 app.post('/api/faculty/vivas', faculty, wrap(async (req, res) => {
   const { subject, topics = [], difficulty = 'medium', phases, bankText, bankFormat, questions } = req.body;
   if (!subject) return bad(res, 400, 'subject required');
+  // Quick (default): N questions x S seconds. Full: the 15-minute phased structure.
+  const format = req.body.format === 'phased' ? 'phased' : 'timed';
+  const questionCount = Number(req.body.questionCount ?? QUICK_DEFAULTS.questionCount);
+  const secondsPerQuestion = Number(req.body.secondsPerQuestion ?? QUICK_DEFAULTS.secondsPerQuestion);
+  if (format === 'timed') {
+    if (!Number.isInteger(questionCount) || questionCount < 1 || questionCount > 20) return bad(res, 400, 'number of questions must be between 1 and 20');
+    if (!Number.isFinite(secondsPerQuestion) || secondsPerQuestion < 20 || secondsPerQuestion > 300) return bad(res, 400, 'time per question must be between 20 and 300 seconds');
+    if (questionCount * secondsPerQuestion > SLOT_SECONDS - 30) return bad(res, 400, 'questions x time per question must be at most 14:30');
+  }
   const ph = Array.isArray(phases) && phases.length ? phases.map((p, i) => ({ ...DEFAULT_PHASES[i], ...p, seconds: Number(p.seconds) })) : DEFAULT_PHASES;
   if (ph.some(p => !Number.isFinite(p.seconds) || p.seconds < 0)) return bad(res, 400, 'phase timings must be positive numbers of seconds');
   // Phases plus the 30 s scoring hand-off must fit in the 15-minute slot.
-  if (totalSeconds(ph) > SLOT_SECONDS - 30) return bad(res, 400, `phases must total at most ${SLOT_SECONDS - 30} seconds (14:30)`);
+  if (format === 'phased' && totalSeconds(ph) > SLOT_SECONDS - 30) return bad(res, 400, `phases must total at most ${SLOT_SECONDS - 30} seconds (14:30)`);
   const id = uid('v_');
   const code = String(req.body.code || subject.replace(/[^A-Za-z]/g, '').slice(0, 4) + '-' + Math.floor(1000 + Math.random() * 9000)).trim().toUpperCase();
   if (getViva(code)) return bad(res, 409, `viva code ${code} is already in use`);
-  db.prepare('INSERT INTO vivas (id, code, subject, topics, difficulty, phases, rubric, created_at) VALUES (?,?,?,?,?,?,?,?)')
-    .run(id, code, subject, JSON.stringify(topics), difficulty, JSON.stringify(ph), JSON.stringify(DEFAULT_RUBRIC), nowIso());
+  db.prepare('INSERT INTO vivas (id, code, subject, topics, difficulty, phases, rubric, created_at, format, question_count, seconds_per_question) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
+    .run(id, code, subject, JSON.stringify(topics), difficulty, JSON.stringify(ph), JSON.stringify(format === 'timed' ? QUICK_RUBRIC : DEFAULT_RUBRIC), nowIso(),
+      format, format === 'timed' ? questionCount : null, format === 'timed' ? secondsPerQuestion : null);
   let added = 0;
   if (bankText) added += insertQuestions(id, parseBank(bankText, bankFormat), 'upload', true).length;
   if (Array.isArray(questions)) added += insertQuestions(id, questions, 'upload', true).length;
@@ -174,11 +185,15 @@ app.post('/api/student/join', studentAuth, wrap(async (req, res) => {
   res.json({ sessionId: id, resumed: false, viva: publicViva(v) });
 }));
 
-const publicViva = v => ({ subject: v.subject, topics: v.topics, phases: v.phases.map(({ key, label, seconds }) => ({ key, label, seconds })),
-  interviewSeconds: totalSeconds(v.phases), slotSeconds: slotSeconds(v.phases), maxAnswerSeconds: MAX_ANSWER_SECONDS });
+const publicViva = v => isTimed(v)
+  ? { subject: v.subject, topics: v.topics, format: 'timed', questionCount: v.questionCount, secondsPerQuestion: v.secondsPerQuestion, phases: [],
+    interviewSeconds: v.questionCount * v.secondsPerQuestion, slotSeconds: vivaSlotSeconds(v), maxAnswerSeconds: v.secondsPerQuestion }
+  : { subject: v.subject, topics: v.topics, format: 'phased', phases: v.phases.map(({ key, label, seconds }) => ({ key, label, seconds })),
+    interviewSeconds: totalSeconds(v.phases), slotSeconds: vivaSlotSeconds(v), maxAnswerSeconds: MAX_ANSWER_SECONDS };
 
 function snapshot(s, v) {
   const el = s.started_at ? elapsedOf(s) : 0;
+  if (isTimed(v)) return { elapsed: el, interviewSeconds: vivaSlotSeconds(v), questionNumber: s.state.qNum || 1, questionCount: v.questionCount, status: s.status };
   const idx = Math.max(s.state.phaseIdx || 0, timePhaseIndex(v.phases, el));
   return { elapsed: el, interviewSeconds: totalSeconds(v.phases), phase: v.phases[Math.min(idx, v.phases.length - 1)].key, status: s.status };
 }
@@ -194,6 +209,12 @@ app.post('/api/student/sessions/:id/start', wrap(async (req, res) => {
   }
   const startedAt = Date.now();
   db.prepare("UPDATE sessions SET started_at = ?, status = 'active' WHERE id = ?").run(startedAt, s.id);
+  if (isTimed(v)) {
+    const t = startTimed(v, s, getQuestions(v.id));
+    saveState(s.id, t.state);
+    addTurn({ session_id: s.id, role: 'ai', text: t.say, t_start: 0, phase: t.phaseKey, question_id: t.questionId, action: 'greeting', meta: { prompt_version: INTERVIEWER_PROMPT_VERSION } });
+    return res.json({ say: t.say, ...snapshot(getSession(s.id), v), done: false });
+  }
   const say = greeting(v, s);
   addTurn({ session_id: s.id, role: 'ai', text: say, t_start: 0, phase: 'warmup', question_id: 'opener', action: 'greeting', meta: { prompt_version: INTERVIEWER_PROMPT_VERSION } });
   res.json({ say, ...snapshot(getSession(s.id), v), done: false });
@@ -209,15 +230,15 @@ app.post('/api/student/sessions/:id/turn', wrap(async (req, res) => {
   const v = getViva(s.viva_id);
   const el = elapsedOf(s);
   const history = getTurns(s.id);
-  const askedPhase = v.phases[Math.min(s.state.phaseIdx, v.phases.length - 1)].key;
+  const askedPhase = isTimed(v) ? phaseOfQuestion(s.state.q) : v.phases[Math.min(s.state.phaseIdx, v.phases.length - 1)].key;
   if (clientLatencyMs != null) {
     const lastAi = history.filter(h => h.role === 'ai').at(-1);
     if (lastAi) db.prepare("UPDATE turns SET meta = json_set(meta, '$.clientLatencyMs', ?) WHERE id = ?").run(clientLatencyMs, lastAi.id);
   }
   if (silence) addEvent(s.id, el, 'silence', {});
-  if (capped) addEvent(s.id, el, 'answer_capped', { seconds: MAX_ANSWER_SECONDS });
+  if (capped) addEvent(s.id, el, 'answer_capped', { seconds: isTimed(v) ? v.secondsPerQuestion : MAX_ANSWER_SECONDS });
 
-  const r = await nextTurn({ viva: v, session: s, bank: getQuestions(v.id), history, answer: String(text).slice(0, 4000), elapsed: el });
+  const r = await (isTimed(v) ? nextTimedTurn : nextTurn)({ viva: v, session: s, bank: getQuestions(v.id), history, answer: String(text).slice(0, 4000), elapsed: el });
   const latency = Date.now() - t0;
   latencies.push(latency); if (latencies.length > 5000) latencies.shift();
   const elAfter = elapsedOf(s);
@@ -261,8 +282,8 @@ app.post('/api/student/sessions/:id/end', (req, res) => {
 
 // Server-side hard limit: close any viva past its slot even if the browser vanished.
 setInterval(() => {
-  for (const r of db.prepare("SELECT s.id, s.started_at, v.phases FROM sessions s JOIN vivas v ON v.id = s.viva_id WHERE s.status = 'active'").all()) {
-    const slot = slotSeconds(JSON.parse(r.phases));
+  for (const r of db.prepare("SELECT id, started_at, viva_id FROM sessions WHERE status = 'active'").all()) {
+    const slot = vivaSlotSeconds(getViva(r.viva_id));
     if ((Date.now() - r.started_at) / 1000 > slot + 60) {
       db.prepare("UPDATE sessions SET status = 'ended', ended_at = ? WHERE id = ?").run(Date.now(), r.id);
       addEvent(r.id, slot, 'ended', { reason: 'server_timeout' });
@@ -350,14 +371,15 @@ app.get('/api/faculty/export.csv', faculty, (req, res) => {
 
 // Demo viva so a fresh install is usable immediately (disable with SEED_DEMO=0).
 function seedDemo() {
-  if (process.env.SEED_DEMO === '0' || getViva('DBMS-DEMO')) return;
+  if (process.env.SEED_DEMO === '0' || getViva('DS-DEMO')) return;
   const id = uid('v_');
-  db.prepare('INSERT INTO vivas (id, code, subject, topics, difficulty, phases, rubric, created_at) VALUES (?,?,?,?,?,?,?,?)')
-    .run(id, 'DBMS-DEMO', 'Database Management Systems', JSON.stringify(['normalization', 'indexing', 'transactions', 'sql']), 'medium',
-      JSON.stringify(DEFAULT_PHASES), JSON.stringify(DEFAULT_RUBRIC), nowIso());
-  const bank = JSON.parse(fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), 'data/samples/dbms-question-bank.json'), 'utf8'));
+  const topics = ['arrays and linked lists', 'stacks', 'queues', 'hashing', 'trees', 'heaps', 'graphs', 'sorting'];
+  db.prepare('INSERT INTO vivas (id, code, subject, topics, difficulty, phases, rubric, created_at, format, question_count, seconds_per_question) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
+    .run(id, 'DS-DEMO', 'Data Structures', JSON.stringify(topics), 'medium', JSON.stringify(DEFAULT_PHASES), JSON.stringify(QUICK_RUBRIC), nowIso(),
+      'timed', QUICK_DEFAULTS.questionCount, QUICK_DEFAULTS.secondsPerQuestion);
+  const bank = JSON.parse(fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), 'data/samples/ds-question-bank.json'), 'utf8'));
   insertQuestions(id, bank, 'sample', true);
-  console.log('Seeded demo viva DBMS-DEMO');
+  console.log('Seeded demo viva DS-DEMO (Data Structures, 5 questions x 1 minute)');
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

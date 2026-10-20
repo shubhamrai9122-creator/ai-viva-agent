@@ -2,7 +2,7 @@
 
 Status as of 2026-10-19. Everything below ran in **mock mode** (rule-based interviewer, heuristic scorer) because no Anthropic API key was available. The Claude request path is tested against a local fake of the API (§1b), but not against Anthropic's real servers yet. The sections marked **TODO** need an API key or consented volunteers; the scripts are included.
 
-## 1. Automated tests: `npm test` (21/21 pass)
+## 1. Automated tests: `npm test` (28/28 pass)
 
 | Test | What it checks |
 |---|---|
@@ -15,10 +15,13 @@ Status as of 2026-10-19. Everything below ran in **mock mode** (rule-based inter
 | traceability | Every question is a bank question, a logged follow-on (`var:<bank id>:n`) or a second chance (`rev:<bank id>`); none repeats |
 | applied, wrap-up and close | The Applied phase picks an `applied` question; wrap-up, then the closing line |
 | hard time limit | Any turn after 14:30 closes the viva |
-| full time for a student who skips everything | With the 11-question sample bank, a student answering "I don't know" every 20 s reaches wrap-up within 75 s of 13:00 (by design, no new applied problem starts with under 75 s left) |
+| quick format | Greeting states "5 questions, one minute each" and asks question 1; exactly 5 different questions, the last one applied, then the close; strong answers lead to harder (depth) questions and weak ones to easier (concept) ones, across at least 4 topics; a timed-out empty answer moves on |
+| email check (ValidateEasy) | Against a fake of the ValidateEasy API: real addresses pass; disposable, dead-domain and mistyped ones are rejected with a clear message; results are cached; an outage never blocks sign-in |
+| full time for a student who skips everything | With the 16-question sample bank, a student answering "I don't know" every 20 s reaches wrap-up within 75 s of 13:00 (by design, no new applied problem starts with under 75 s left) |
 | tiny bank | A 3-question bank that runs out is flagged (`bank_exhausted`), not silently ended early |
 | email sign-in | Bad email rejected; 30 s resend cooldown; wrong code rejected; codes are single-use; email is case-insensitive; tampered tokens rejected; 5 wrong tries lock the code |
 | PDF / image upload | A question paper PDF yields 6 draft questions, including one that runs over two lines; a syllabus PDF with no questions yields drafted ones; unsupported and corrupt files are rejected cleanly; Claude receives PDFs as document blocks and images as image blocks; if Claude fails, the PDF is read locally |
+| quick viva (HTTP) | A quick viva ends after the 5th answer and is marked on 4 dimensions (conceptual, depth, problem solving, communication) |
 | full lifecycle (HTTP) | Sign-in required to join; a student can't answer someone else's viva or reuse another student's ID; faculty auth; viva code checked before consent; duplicate codes and over-long phases rejected; CSV upload; AI-drafted questions start unapproved; consent required; idempotent retry; audio upload; rejoin; no retake; evidence cites real lines; mandatory review; bank-ran-out flag (including at 0 s); override logged; CSV export; calibration |
 
 ### 1b. Claude integration against a fake Messages API: `tests/llm.test.js` (5 tests)
@@ -34,13 +37,13 @@ A local HTTP server stands in for Anthropic's API, so the real SDK request path 
 
 ## 2. Follow-up quality: `npm run personas`
 
-Three scripted personas each ran a full simulated viva on the 11-question sample bank. The transcripts are in `test-results/personas/*.md`.
+Three scripted personas each ran a full 15-minute simulated viva (the full format, which has follow-ups) on the 16-question Data Structures sample bank. The transcripts are in `test-results/personas/*.md`. The quick 5-question format is covered by the automated tests in §1.
 
-| Persona | Deeper | Hint | Redirect | Next | Mock score | Time used (before → now) |
+| Persona | Deeper | Hint | Redirect | Next | Mock score | Time used |
 |---|---|---|---|---|---|---|
-| strong | 13 | 0 | 2 | 9 | 81 | 12:37 → 12:44 |
-| weak (vague, partial answers) | 0 | 21 | 0 | 23 | 57 | 6:37 → 12:18 |
-| dontknow (Hinglish, prompt injection, off-topic, "I don't know") | 0 | 1 | 2 | 46 | 30 | 3:59 → 12:14 |
+| strong | 14 | 0 | 0 | 9 | 92 | 13:09 |
+| weak (vague, partial answers) | 0 | 22 | 0 | 23 | 60 | 12:35 |
+| dontknow (Hinglish, prompt injection, off-topic, "I don't know") | 0 | 1 | 2 | 50 | 30 | 12:22 |
 
 **What worked:**
 - Strong answers got deeper follow-ups, up to the per-phase limit.
@@ -49,14 +52,14 @@ Three scripted personas each ran a full simulated viva on the 11-question sample
 - The prompt-injection turn and the "cricket" turn were both redirected once.
 - **Fixed since the first report:** the weak and dontknow personas used to run out of questions at 6:37 and 3:59. They now get the full time through logged follow-on questions and second chances on skipped questions. If even those run out, the viva is flagged for review.
 
-**Remaining problem:** mock-mode relevance is keyword-based, so it has false positives. The strong persona's generic answer about query plans was redirected on "Why might a query that uses an index still be slow?" because it shares no words with the question or its reference points. That redirect lowered its mock score from 92 to 81. The LLM interviewer judges relevance by meaning. TODO: rerun `npm run personas` with an API key.
+**Remaining problem:** mock-mode relevance is keyword-based, so a relevant answer that shares no words with the question or its reference points can be redirected by mistake. The LLM interviewer judges relevance by meaning. TODO: rerun `npm run personas` with an API key.
 
 ## 3. Scoring consistency: `npm run consistency -- 5`
 
 | Transcript | Runs | Totals | Std dev |
 |---|---|---|---|
-| strong | 5 | 81 / 81 / 81 / 81 / 81 | 0 |
-| weak | 5 | 57 / 57 / 57 / 57 / 57 | 0 |
+| strong | 5 | 92 / 92 / 92 / 92 / 92 | 0 |
+| weak | 5 | 60 / 60 / 60 / 60 / 60 | 0 |
 | dontknow | 5 | 30 / 30 / 30 / 30 / 30 | 0 |
 
 The heuristic scorer is deterministic, so zero variance is expected. **TODO:** rerun with `ANTHROPIC_API_KEY` set to measure the variance of the Claude Opus 5.5 scorer.

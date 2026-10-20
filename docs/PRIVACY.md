@@ -16,6 +16,8 @@
   - **Anthropic API.** Receives transcript text, both for live turns and for scoring. It does not receive audio. Data is handled under Anthropic's commercial terms and is not used for model training.
   - **Google, via Chrome.** Chrome's built-in speech recognition sends microphone audio to Google to transcribe it. If that isn't acceptable, switch STT to a self-hosted model (faster-whisper). See DESIGN.md §5.
 
+When `VALIDATEEASY_API_KEY` is set, each student's email address is sent to ValidateEasy (validateeasy.com) once, to check that it is real and not disposable, before a sign-in code is issued.
+
 Uploaded question papers and syllabi (PDF, PNG, JPG) are not kept. Only the questions taken from them are stored. With an API key, the file is sent to the Anthropic API to be read; without one, it is read on the server.
 
 ## Who can access it

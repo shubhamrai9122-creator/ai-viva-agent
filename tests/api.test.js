@@ -52,20 +52,21 @@ test('email sign-in', async () => {
 
 test('full viva lifecycle', async () => {
   assert.equal((await call('/api/faculty/vivas')).status, 401);
-  const csv = fs.readFileSync(new URL('../data/samples/dbms-question-bank.csv', import.meta.url), 'utf8');
-  const v = await call('/api/faculty/vivas', { subject: 'DBMS', code: 'TEST-1', topics: ['indexing'], bankText: csv, bankFormat: 'csv' }, F);
-  assert.equal(v.status, 200); assert.equal(v.body.added, 11);
+  const csv = fs.readFileSync(new URL('../data/samples/ds-question-bank.csv', import.meta.url), 'utf8');
+  const v = await call('/api/faculty/vivas', { subject: 'Data Structures', code: 'TEST-1', format: 'phased', topics: ['hashing'], bankText: csv, bankFormat: 'csv' }, F);
+  assert.equal(v.status, 200); assert.equal(v.body.added, 16);
 
-  const gen = await call(`/api/faculty/vivas/${v.body.id}/generate`, { syllabus: 'indexing' }, F);
+  const gen = await call(`/api/faculty/vivas/${v.body.id}/generate`, { syllabus: 'hashing' }, F);
   assert.ok(gen.body.added > 0);
   const qs = (await call(`/api/faculty/vivas/${v.body.id}/questions`, null, F)).body;
   assert.ok(qs.some(q => q.approved === 0 && q.source === 'ai-generated'), 'generated questions start unapproved');
 
   assert.equal((await call('/api/student/vivas/NOPE-0')).status, 404, 'unknown code rejected up front');
   const pub = (await call('/api/student/vivas/test-1')).body;
-  assert.equal(pub.subject, 'DBMS'); assert.equal(pub.slotSeconds, 900); assert.equal(pub.interviewSeconds, 870);
+  assert.equal(pub.subject, 'Data Structures'); assert.equal(pub.format, 'phased'); assert.equal(pub.slotSeconds, 900); assert.equal(pub.interviewSeconds, 870);
   assert.equal((await call('/api/faculty/vivas', { subject: 'Dup', code: 'test-1' }, F)).status, 409, 'duplicate code rejected');
-  assert.equal((await call('/api/faculty/vivas', { subject: 'Long', phases: [{ seconds: 900 }] }, F)).status, 400, 'phases over 14:30 rejected');
+  assert.equal((await call('/api/faculty/vivas', { subject: 'Long', format: 'phased', phases: [{ seconds: 900 }] }, F)).status, 400, 'phases over 14:30 rejected');
+  assert.equal((await call('/api/faculty/vivas', { subject: 'Long', questionCount: 20, secondsPerQuestion: 60 }, F)).status, 400, 'quick viva over 14:30 rejected');
 
   assert.equal((await call('/api/student/join', { code: 'TEST-1', studentId: 'S1', consent: true })).status, 401, 'sign-in required');
   const S = await signIn('asha@example.com');
@@ -95,8 +96,8 @@ test('full viva lifecycle', async () => {
 
   // A student who skips everything on a small bank, answering instantly: the bank runs out at
   // 0 s elapsed, which must still be flagged (0 is a valid time).
-  await call('/api/faculty/vivas', { subject: 'Tiny', code: 'TINY-1', topics: ['indexing'],
-    questions: [{ text: 'What is an index?', topic: 'indexing', kind: 'concept' }] }, F);
+  await call('/api/faculty/vivas', { subject: 'Tiny', code: 'TINY-1', format: 'phased', topics: ['stacks'],
+    questions: [{ text: 'What is a stack?', topic: 'stacks', kind: 'concept' }] }, F);
   const S2 = await signIn('ravi@example.com');
   const j2 = (await call('/api/student/join', { code: 'TINY-1', studentId: 'S2', consent: true }, S2)).body;
   await call(`/api/student/sessions/${j2.sessionId}/start`, {}, S2);
@@ -135,7 +136,7 @@ test('full viva lifecycle', async () => {
 });
 
 test('PDF question paper and image uploads become draft questions', async () => {
-  const v = (await call('/api/faculty/vivas', { subject: 'DBMS', code: 'IMPORT-1', topics: ['normalization', 'indexing', 'transactions'] }, F)).body;
+  const v = (await call('/api/faculty/vivas', { subject: 'Data Structures', code: 'IMPORT-1', topics: ['arrays and linked lists', 'hashing', 'trees', 'heaps', 'sorting'] }, F)).body;
   const upload = (buf, type) => fetch(`${base}/api/faculty/vivas/${v.id}/import`, { method: 'POST', headers: { ...F, 'content-type': type }, body: buf })
     .then(async r => ({ status: r.status, body: await r.json() }));
 
@@ -144,12 +145,35 @@ test('PDF question paper and image uploads become draft questions', async () => 
   assert.equal(pdf.body.added, 6);
   const qs = (await call(`/api/faculty/vivas/${v.id}/questions`, null, F)).body;
   assert.ok(qs.every(q => q.approved === 0 && q.source === 'pdf-import'), 'imported questions wait for approval');
-  assert.ok(qs.some(q => /two users book the last seat.*How would you prevent/.test(q.text)), 'wrapped question kept whole');
-  assert.equal(qs.find(q => /^What is normalization/.test(q.text)).topic, 'normalization');
+  assert.ok(qs.some(q => /shortest route between two stations.*Which data structure/.test(q.text)), 'wrapped question kept whole');
+  assert.equal(qs.find(q => /^What is the difference between an array/.test(q.text)).topic, 'arrays and linked lists');
+  assert.equal(qs.find(q => /heap better/.test(q.text)).topic, 'heaps');
 
-  const syllabus = await upload(makePdf(['Unit 1: Relational model, normal forms', 'Unit 2: Indexing and B+ trees']), 'application/pdf');
+  const syllabus = await upload(makePdf(['Unit 1: Arrays, linked lists', 'Unit 2: Trees and graphs']), 'application/pdf');
   assert.ok(syllabus.body.added > 0 && syllabus.body.method === 'syllabus', 'a syllabus with no questions generates drafts');
 
   assert.equal((await upload(Buffer.from('just some text'), 'text/plain')).status, 400, 'unsupported type rejected');
   assert.equal((await upload(Buffer.from('%PDF-1.4 broken'), 'application/pdf')).status >= 400, true, 'corrupt PDF handled');
+});
+
+test('quick viva: 5 questions, 1 minute each, marked on 4 dimensions', async () => {
+  const bank = fs.readFileSync(new URL('../data/samples/ds-question-bank.json', import.meta.url), 'utf8');
+  const v = await call('/api/faculty/vivas', { subject: 'Data Structures', code: 'QUICK-1', topics: ['stacks', 'hashing', 'graphs'], bankText: bank, bankFormat: 'json' }, F);
+  assert.equal(v.status, 200);
+  const pub = (await call('/api/student/vivas/QUICK-1')).body;
+  assert.equal(pub.format, 'timed'); assert.equal(pub.questionCount, 5); assert.equal(pub.secondsPerQuestion, 60);
+  const S = await signIn('meera@example.com');
+  const sid = (await call('/api/student/join', { code: 'QUICK-1', studentId: 'Q1', name: 'Meera', consent: true }, S)).body.sessionId;
+  const st = (await call(`/api/student/sessions/${sid}/start`, {}, S)).body;
+  assert.match(st.say, /There are 5 questions.*Question 1\./);
+  assert.equal(st.questionNumber, 1); assert.equal(st.questionCount, 5);
+  let r, n = 0;
+  do { r = (await call(`/api/student/sessions/${sid}/turn`, { text: 'A stack is last in first out and a queue is first in first out, used for breadth first search and scheduling', turnKey: 'q' + n }, S)).body; n++; }
+  while (!r.done && n < 10);
+  assert.equal(n, 5, 'viva ends after the 5th answer');
+  await call(`/api/student/sessions/${sid}/end`, {}, S);
+  let d;
+  for (let i = 0; i < 40; i++) { d = (await call(`/api/faculty/sessions/${sid}`, null, F)).body; if (d.session.score_status === 'done') break; await new Promise(res => setTimeout(res, 50)); }
+  assert.deepEqual(d.session.score.dimensions.map(x => x.key), ['conceptual', 'depth', 'problem_solving', 'communication']);
+  assert.equal(d.transcript.filter(l => l.role === 'STUDENT').length, 5);
 });

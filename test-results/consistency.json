@@ -11,8 +11,8 @@
   {
     "transcript": "strong",
     "runs": 5,
-    "totals": "81 / 81 / 81 / 81 / 81",
-    "mean": 81,
+    "totals": "92 / 92 / 92 / 92 / 92",
+    "mean": 92,
     "stdev": 0,
     "range": 0,
     "maxDimStdev": 0
@@ -20,8 +20,8 @@
   {
     "transcript": "weak",
     "runs": 5,
-    "totals": "57 / 57 / 57 / 57 / 57",
-    "mean": 57,
+    "totals": "60 / 60 / 60 / 60 / 60",
+    "mean": 60,
     "stdev": 0,
     "range": 0,
     "maxDimStdev": 0

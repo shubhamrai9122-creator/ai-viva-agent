@@ -17,6 +17,16 @@ export const DEFAULT_RUBRIC = [
   { key: 'communication', label: 'Communication', weight: 10, five: 'Clear, structured, concise answers' },
 ];
 
+// Quick format (the default): a fixed number of questions, each with its own answer time.
+export const QUICK_DEFAULTS = { questionCount: 5, secondsPerQuestion: 60 };
+// No project-talk question in the quick format, so practical knowledge isn't scored there.
+export const QUICK_RUBRIC = [
+  { key: 'conceptual', label: 'Conceptual understanding', weight: 40, five: 'Explains core concepts correctly in their own words' },
+  { key: 'depth', label: 'Depth and reasoning', weight: 25, five: 'Explains trade-offs, complexity and "why"' },
+  { key: 'problem_solving', label: 'Problem solving', weight: 25, five: 'Breaks the applied problem into steps, reaches a sound approach' },
+  { key: 'communication', label: 'Communication', weight: 10, five: 'Clear, structured, concise answers' },
+];
+
 export const MAX_ANSWER_SECONDS = 90;
 
 // Follow-up budget per question, by phase.

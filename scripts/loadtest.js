@@ -8,11 +8,11 @@ const LEVELS = arg('users', '50,100,150').split(',').map(Number);
 const MINUTES = Number(arg('minutes', '2'));
 const KEY = process.env.FACULTY_PASSCODE || 'faculty123';
 const ANSWERS = [
-  'Normalization reduces redundancy by splitting tables based on functional dependencies so that updates do not cause anomalies, and we go up to third normal form usually.',
-  'A clustered index stores the rows in the order of the key so there is only one, while a non clustered index is a separate B plus tree that points to the rows.',
+  'An array stores elements in contiguous memory so indexing is constant time, while a linked list uses nodes with pointers, so inserting in the middle is cheap but access is linear.',
+  'A hash table maps keys to buckets with a hash function; a collision is when two keys land in the same bucket, and we handle it with chaining or open addressing.',
   "I don't know.",
-  'I think it is about locking, maybe.',
-  'Atomicity means all or nothing, consistency keeps constraints valid, isolation means concurrent transactions do not see each other partially, and durability uses the write ahead log so committed data survives a crash.',
+  'I think it is about using a stack, maybe.',
+  'Breadth-first search uses a queue and visits nodes level by level, so it finds the shortest path in an unweighted graph; depth-first search uses a stack or recursion and goes deep first.',
 ];
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const post = async (p, body, headers = {}) => {
@@ -58,8 +58,8 @@ for (const users of LEVELS) {
   // Compressed viva so sessions cycle through every phase during the test window.
   const secs = MINUTES * 60;
   const phases = [['warmup', 0.07], ['fundamentals', 0.27], ['depth', 0.33], ['applied', 0.2], ['wrapup', 0.1]].map(([key, f]) => ({ key, seconds: Math.round(secs * f) }));
-  const v = await post('/api/faculty/vivas', { subject: 'Load test', topics: ['normalization', 'indexing', 'transactions'], phases,
-    bankText: fs.readFileSync(new URL('../data/samples/dbms-question-bank.json', import.meta.url), 'utf8'), bankFormat: 'json' }, { 'x-faculty-key': KEY });
+  const v = await post('/api/faculty/vivas', { subject: 'Load test', format: 'phased', topics: ['arrays and linked lists', 'stacks', 'hashing', 'graphs'], phases,
+    bankText: fs.readFileSync(new URL('../data/samples/ds-question-bank.json', import.meta.url), 'utf8'), bankFormat: 'json' }, { 'x-faculty-key': KEY });
   const m = { lat: [], turns: 0, turnErr: 0, completed: 0, dropped: 0, audioOk: 0, audioErr: 0, errors: [] };
   const deadline = Date.now() + secs * 1000 + 15000;
   const healthSamples = [];

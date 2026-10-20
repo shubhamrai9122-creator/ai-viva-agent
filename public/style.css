@@ -64,7 +64,9 @@ label .hint { font-weight: 400; color: var(--muted); }
 input, select, textarea { width: 100%; padding: 10px 12px; border: 1px solid var(--line-strong); border-radius: 10px; background: #fff; color: var(--ink); font: inherit; transition: border-color .15s, box-shadow .15s; }
 input:focus, select:focus, textarea:focus { outline: none; border-color: var(--caramel); box-shadow: 0 0 0 3px rgba(192, 133, 82, .22); }
 textarea { min-height: 96px; resize: vertical; }
-input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--choc); margin: 0; flex: none; }
+input[type=checkbox], input[type=radio] { width: 18px; height: 18px; accent-color: var(--choc); margin: 0; flex: none; }
+.check.fmt { margin: 0; padding: 12px 14px; border: 1px solid var(--line-strong); border-radius: 12px; }
+.check.fmt:has(input:checked) { border-color: var(--choc); background: var(--choc-soft); }
 .check { display: flex; gap: 10px; align-items: flex-start; font-weight: 400; margin: 14px 0; cursor: pointer; }
 .code-input { font: 600 28px/1 ui-monospace, Menlo, monospace; letter-spacing: 12px; text-align: center; max-width: 280px; }
 

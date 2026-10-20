@@ -1,0 +1,32 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 842] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>
+endobj
+4 0 obj
+<< /Length 714 >>
+stream
+BT /F1 12 Tf 15 TL 60 760 Td (MSOT - Data Structures - Viva Question Paper) Tj T* (Time: 5 minutes        Max marks: 100) Tj T* (Answer all questions orally.) Tj T* (1. What is the difference between an array and a linked list? \(5 marks\)) Tj T* (2. Explain how a hash table handles collisions using chaining) Tj T* (   or open addressing.) Tj T* (3. Why is a heap better than a sorted array for a priority queue?) Tj T* (4. Compare quicksort and merge sort. When would you use each?) Tj T* (5. Suppose you must find the shortest route between two stations in a metro map.) Tj T* (   Which data structure and algorithm would you use?) Tj T* (6. Define a binary search tree and the property it maintains.) Tj T* ET
+endstream
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000241 00000 n 
+0000001006 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+1076
+%%EOF

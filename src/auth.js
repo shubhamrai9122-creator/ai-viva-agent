@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { db, DATA_DIR, nowIso } from './db.js';
 import { sendLoginCode } from './mailer.js';
+import { checkEmailIsReal } from './emailcheck.js';
 
 const CODE_TTL_MS = 10 * 60 * 1000;
 const RESEND_AFTER_MS = 30 * 1000;
@@ -48,6 +49,8 @@ export async function requestCode(rawEmail) {
   const email = normaliseEmail(rawEmail);
   const bad = checkEmail(email);
   if (bad) return { error: bad, status: 400 };
+  const real = await checkEmailIsReal(email);   // ValidateEasy: real, non-disposable address?
+  if (!real.ok) return { error: real.error, status: 400 };
   const last = db.prepare('SELECT created_at FROM login_codes WHERE email = ? ORDER BY id DESC LIMIT 1').get(email);
   if (last && Date.now() - last.created_at < RESEND_AFTER_MS) {
     return { error: 'Please wait a few seconds before asking for another code', status: 429, retryAfter: Math.ceil((RESEND_AFTER_MS - (Date.now() - last.created_at)) / 1000) };

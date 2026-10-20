@@ -50,6 +50,10 @@ if (!db.prepare('PRAGMA table_info(sessions)').all().some(c => c.name === 'stude
   db.exec('ALTER TABLE sessions ADD COLUMN student_email TEXT');
 }
 db.exec('CREATE INDEX IF NOT EXISTS idx_sessions_email ON sessions(viva_id, student_email)');
+const vivaCols = db.prepare('PRAGMA table_info(vivas)').all().map(c => c.name);
+if (!vivaCols.includes('format')) db.exec("ALTER TABLE vivas ADD COLUMN format TEXT DEFAULT 'phased'");
+if (!vivaCols.includes('question_count')) db.exec('ALTER TABLE vivas ADD COLUMN question_count INTEGER');
+if (!vivaCols.includes('seconds_per_question')) db.exec('ALTER TABLE vivas ADD COLUMN seconds_per_question INTEGER');
 
 export const uid = (p = '') => p + crypto.randomBytes(8).toString('hex');
 export const nowIso = () => new Date().toISOString();
@@ -58,14 +62,15 @@ const J = (s, d = null) => { try { return s == null ? d : JSON.parse(s); } catch
 export function getViva(id) {
   const v = db.prepare('SELECT * FROM vivas WHERE id = ? OR code = ?').get(id, id);
   if (!v) return null;
-  return { ...v, topics: J(v.topics, []), phases: J(v.phases, []), rubric: J(v.rubric, []) };
+  return { ...v, topics: J(v.topics, []), phases: J(v.phases, []), rubric: J(v.rubric, []),
+    format: v.format || 'phased', questionCount: v.question_count, secondsPerQuestion: v.seconds_per_question };
 }
 export function listVivas() {
   return db.prepare(`SELECT v.*, (SELECT COUNT(*) FROM sessions s WHERE s.viva_id = v.id) AS sessions,
     (SELECT COUNT(*) FROM questions q WHERE q.viva_id = v.id AND q.approved = 1) AS approved_questions,
     (SELECT COUNT(*) FROM questions q WHERE q.viva_id = v.id AND q.approved = 0) AS pending_questions
     FROM vivas v ORDER BY created_at DESC`).all()
-    .map(v => ({ ...v, topics: J(v.topics, []), phases: J(v.phases, []) }));
+    .map(v => ({ ...v, topics: J(v.topics, []), phases: J(v.phases, []), format: v.format || 'phased', questionCount: v.question_count, secondsPerQuestion: v.seconds_per_question }));
 }
 export function getQuestions(vivaId, onlyApproved = true) {
   return db.prepare(`SELECT * FROM questions WHERE viva_id = ? ${onlyApproved ? 'AND approved = 1' : ''} ORDER BY created_at, rowid`).all(vivaId);

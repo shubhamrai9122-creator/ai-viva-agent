@@ -8,3 +8,4 @@ test-results/loaddb/
 data/.auth-secret
 data/ocr-cache/
 *.traineddata
+data/backup-*/

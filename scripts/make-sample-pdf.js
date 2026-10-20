@@ -1,5 +1,5 @@
 // Builds a minimal text PDF (no dependencies). Used for the sample question paper and in tests.
-// Usage: node scripts/make-sample-pdf.js  -> data/samples/dbms-question-paper.pdf
+// Usage: node scripts/make-sample-pdf.js  -> data/samples/ds-question-paper.pdf
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
@@ -23,20 +23,20 @@ export function makePdf(lines) {
 }
 
 export const SAMPLE_PAPER = [
-  'MSOT - Database Management Systems - Viva Question Paper',
-  'Time: 15 minutes        Max marks: 100',
+  'MSOT - Data Structures - Viva Question Paper',
+  'Time: 5 minutes        Max marks: 100',
   'Answer all questions orally.',
-  '1. What is normalization, and why do we normalize tables? (5 marks)',
-  '2. Explain the difference between a clustered and a non-clustered',
-  '   index.',
-  '3. Why can adding too many indexes slow down writes?',
-  '4. Compare optimistic and pessimistic locking. When would you use each?',
-  '5. Suppose two users book the last seat on a flight at the same time.',
-  '   How would you prevent both bookings from succeeding?',
-  '6. Define the ACID properties of a transaction.',
-];
+  '1. What is the difference between an array and a linked list? (5 marks)',
+  '2. Explain how a hash table handles collisions using chaining',
+  '   or open addressing.',
+  '3. Why is a heap better than a sorted array for a priority queue?',
+  '4. Compare quicksort and merge sort. When would you use each?',
+  '5. Suppose you must find the shortest route between two stations in a metro map.',
+  '   Which data structure and algorithm would you use?',
+  '6. Define a binary search tree and the property it maintains.',
+]
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
-  fs.writeFileSync(new URL('../data/samples/dbms-question-paper.pdf', import.meta.url), makePdf(SAMPLE_PAPER));
-  console.log('wrote data/samples/dbms-question-paper.pdf');
+  fs.writeFileSync(new URL('../data/samples/ds-question-paper.pdf', import.meta.url), makePdf(SAMPLE_PAPER));
+  console.log('wrote data/samples/ds-question-paper.pdf');
 }
